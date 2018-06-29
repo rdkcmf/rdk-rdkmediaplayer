@@ -203,9 +203,17 @@ bool MediaPlayerGeneric::rmf_load(const std::string &url)
 
   configureElement(pipeline());
 
-  if(!gFlagGetVideoSinkFromPlaybin)
+  std::string videoSinkName;
+  if(getenv("PLAYERSINKBIN_USE_WESTEROSSINK"))
   {
-    std::string videoSinkName = gMediaConfig["video-sink"];
+    videoSinkName = "westerossink";
+  }
+  else if(!gFlagGetVideoSinkFromPlaybin)
+  {
+    videoSinkName = gMediaConfig["video-sink"];
+  }
+  if(!videoSinkName.empty())
+  {
     GstElement* videoSink = gst_element_factory_make(videoSinkName.c_str(), nullptr);
     if (videoSink)
     {
