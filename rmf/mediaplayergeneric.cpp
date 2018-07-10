@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 #include <jansson.h>
+#include <math.h>
 
 #include "logger.h"
 
@@ -344,19 +345,67 @@ bool MediaPlayerGeneric::rmf_isMuted() const
 
 void MediaPlayerGeneric::rmf_seekToLivePosition()
 {
-  NOT_IMPLEMENTED();
+  rmf_seek(0.f);
 }
 void MediaPlayerGeneric::rmf_seekToStartPosition()
 {
-  NOT_IMPLEMENTED();
+  rmf_seek(0.f);
 }
+
+static GstClockTime convertPositionToGstClockTime(float time)
+{
+    // Extract the integer part of the time (seconds) and the fractional part (microseconds). Attempt to
+    // round the microseconds so no floating point precision is lost and we can perform an accurate seek.
+    float seconds;
+    float microSeconds = modf(time, &seconds) * 1000000;
+    GTimeVal timeValue;
+    timeValue.tv_sec = static_cast<glong>(seconds);
+    timeValue.tv_usec = static_cast<glong>(roundf(microSeconds / 10000) * 10000);
+    return GST_TIMEVAL_TO_TIME(timeValue);
+}
+
 void MediaPlayerGeneric::rmf_seek(float time)
 {
-  NOT_IMPLEMENTED();
+    GstState state, pending;
+    gint64 startTime, endTime;
+
+    if (!pipeline())
+        return;
+
+    if (m_errorOccured)
+        return;
+
+    LOG_INFO("[Seek] seek attempt to %f secs", time);
+
+    // Avoid useless seeking.
+    float current = rmf_getCurrentTime();
+    if (time == current)
+        return;
+
+    LOG_INFO("HTML5 video: Seeking from %f to %f seconds", current, time);
+
+    GstClockTime clockTime = convertPositionToGstClockTime(time);
+
+    /* Set it to Pause before Seek */
+    changePipelineState(GST_STATE_PAUSED);
+
+    GstStateChangeReturn ret = gst_element_get_state(pipeline(), &state, &pending, 250 * GST_NSECOND);
+    LOG_INFO ("state: %s, pending: %s, ret = %s", gst_element_state_get_name(state), gst_element_state_get_name(pending), gst_element_state_change_return_get_name(ret));
+
+    startTime = clockTime;
+    endTime = GST_CLOCK_TIME_NONE;
+
+    /* Call Seek Now */
+    if (!gst_element_seek(pipeline(), 1.0, GST_FORMAT_TIME, static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE), GST_SEEK_TYPE_SET, startTime, GST_SEEK_TYPE_SET, endTime)) {
+        LOG_WARNING("[Seek] seeking to %f failed", time);
+    }
+
+    /* Set it to Play */
+    changePipelineState(GST_STATE_PLAYING);
 }
+
 bool MediaPlayerGeneric::rmf_isSeeking() const
 {
-  NOT_IMPLEMENTED();
   return false;
 }
 unsigned long MediaPlayerGeneric::rmf_getCCDecoderHandle() const
