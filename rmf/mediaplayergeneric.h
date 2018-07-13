@@ -72,6 +72,8 @@ private:
   std::string m_url;
   std::string m_errorMsg;
   bool m_errorOccured;
+  bool m_seekIsPending;
+  float m_seekTime;
   IntRect m_lastKnownRect;
 };
 

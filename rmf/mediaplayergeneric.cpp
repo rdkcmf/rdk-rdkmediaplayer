@@ -161,6 +161,8 @@ MediaPlayerGeneric::MediaPlayerGeneric(MediaPlayerClient* client)
   , m_playerState(MediaPlayer::RMF_PLAYER_EMPTY)
   , m_videoState(MediaPlayer::RMF_VIDEO_BUFFER_HAVENOTHING)
   , m_errorOccured(false)
+  , m_seekIsPending(false)
+  , m_seekTime(0.f)
 {
   static std::once_flag loadConfigFlag;
   std::call_once(loadConfigFlag, [](){
@@ -356,7 +358,7 @@ static GstClockTime convertPositionToGstClockTime(float time)
 {
     // Extract the integer part of the time (seconds) and the fractional part (microseconds). Attempt to
     // round the microseconds so no floating point precision is lost and we can perform an accurate seek.
-    float seconds;
+    double seconds;
     float microSeconds = modf(time, &seconds) * 1000000;
     GTimeVal timeValue;
     timeValue.tv_sec = static_cast<glong>(seconds);
@@ -386,22 +388,28 @@ void MediaPlayerGeneric::rmf_seek(float time)
 
     GstClockTime clockTime = convertPositionToGstClockTime(time);
 
-    /* Set it to Pause before Seek */
-    changePipelineState(GST_STATE_PAUSED);
-
     GstStateChangeReturn ret = gst_element_get_state(pipeline(), &state, &pending, 250 * GST_NSECOND);
     LOG_INFO ("state: %s, pending: %s, ret = %s", gst_element_state_get_name(state), gst_element_state_get_name(pending), gst_element_state_change_return_get_name(ret));
 
-    startTime = clockTime;
-    endTime = GST_CLOCK_TIME_NONE;
+    if (ret == GST_STATE_CHANGE_ASYNC || state < GST_STATE_PAUSED) {
+        m_seekIsPending = true;
+    } else {
+        m_seekIsPending = false;
 
-    /* Call Seek Now */
-    if (!gst_element_seek(pipeline(), 1.0, GST_FORMAT_TIME, static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE), GST_SEEK_TYPE_SET, startTime, GST_SEEK_TYPE_SET, endTime)) {
-        LOG_WARNING("[Seek] seeking to %f failed", time);
+        startTime = clockTime;
+        endTime = GST_CLOCK_TIME_NONE;
+
+        /* Call Seek Now */
+        if (!gst_element_seek(pipeline(), 1.0, GST_FORMAT_TIME, static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE), GST_SEEK_TYPE_SET, startTime, GST_SEEK_TYPE_SET, endTime)) {
+            LOG_WARNING("[Seek] seeking to %f failed", time);
+        }
+
+        /* Set it to Play */
+        changePipelineState(GST_STATE_PLAYING);
     }
 
-    /* Set it to Play */
-    changePipelineState(GST_STATE_PLAYING);
+    /* Update the seek time */
+    m_seekTime = time;
 }
 
 bool MediaPlayerGeneric::rmf_isSeeking() const
@@ -615,6 +623,12 @@ void MediaPlayerGeneric::updateStates()
     LOG_INFO("Video State Changed from %u to %u",
              oldVideoState, m_videoState);
     m_playerClient->videoStateChanged();
+  }
+
+  if ((ret == GST_STATE_CHANGE_SUCCESS) && (state >= GST_STATE_PAUSED) && m_seekIsPending) {
+      LOG_INFO ("[Seek] committing pending seek to %f", m_seekTime);
+      m_seekIsPending = false;
+      rmf_seek(m_seekTime);
   }
 }
 
