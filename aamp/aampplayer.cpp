@@ -96,15 +96,23 @@ void SetSurfacePos(void* surface, int x, int y)
 class AAMPListener : public AAMPEventListener
 {
 public:
-    AAMPListener(AAMPPlayer* player) : m_player(player), m_tuned(false), m_duration(0)
+    AAMPListener(AAMPPlayer* player, PlayerInstanceAAMP* aamp) : m_player(player), m_aamp(aamp)
     {
+        reset();
     }
-    void Event(const AAMPEvent & e)
+    void reset()
     {
-        switch (e.type)
+        m_eventTuned = m_eventPlaying = m_didProgress = m_tuned = false;
+        m_lastPosition = std::numeric_limits<double>::max();
+        m_duration = 0;
+        m_tuneStartTime = g_get_monotonic_time();
+    }
+    //first progress event indicates that we tuned, so don't fire any progress events before that
+    void checkIsTuned()
+    {
+        if(!m_tuned && (m_eventTuned && m_eventPlaying && m_didProgress))
         {
-        case AAMP_EVENT_TUNED:
-            {
+            LOG_WARNING("AAMP TUNETIME %.2fs\n", (float)(g_get_monotonic_time() - m_tuneStartTime)/1000000.0f);
             m_tuned = true;
             AAMPEvent progress;
             progress.data.progress.positionMiliseconds = 0;
@@ -113,9 +121,20 @@ public:
             progress.data.progress.startMiliseconds = 0;
             progress.data.progress.endMiliseconds = m_duration;
             m_player->onProgress(progress);
-            }
+        }
+    }
+    void Event(const AAMPEvent & e)
+    {
+        switch (e.type)
+        {
+        case AAMP_EVENT_TUNED:
+            LOG_INFO("event tuned");
+            m_eventTuned = true;
+            checkIsTuned();
             break;
         case AAMP_EVENT_TUNE_FAILED:
+            LOG_INFO("tune failed. code:%d desc:%s failure:%d", e.data.mediaError.code, e.data.mediaError.description, e.data.mediaError.failure);
+            m_player->getParent()->getEventEmitter().send(OnErrorEvent(e.data.mediaError.code, e.data.mediaError.description));
             break;
         case AAMP_EVENT_SPEED_CHANGED:
             m_player->getParent()->getEventEmitter().send(OnSpeedChangeEvent(e.data.speedChanged.rate));
@@ -127,8 +146,24 @@ public:
         case AAMP_EVENT_PLAYLIST_INDEXED:
             break;
         case AAMP_EVENT_PROGRESS:
-            if(m_tuned)//first progress event indicates that we tuned, so don't fire any progress events that MIGHT come before we are tuned as that will cause confussion
+            //LOG_WARNING("progress %g", e.data.progress.positionMiliseconds);
+            if(m_tuned)//don't send any progress event until tuned (first progress from checkIsTuned signals tune complete)
+            {
                 m_player->onProgress(e);
+            }
+            else if(m_eventTuned)//monitor for change in progress position (ignoring any progress events coming before the tuned event)
+            {
+                //if(m_lastPosition != std::numeric_limits<double>::max())
+                {
+                    //if(e.data.progress.positionMiliseconds > m_lastPosition) 
+                    {
+                        LOG_INFO("event progress");
+                        m_didProgress = true;
+                        checkIsTuned();
+                    }
+                }
+                //m_lastPosition = e.data.progress.positionMiliseconds;
+            }
             break;
         case AAMP_EVENT_CC_HANDLE_RECEIVED:
             m_player->getParent()->onVidHandleReceived(e.data.ccHandle.handle);
@@ -169,6 +204,12 @@ public:
                     break;
 	            case eSTATE_SEEKING: break;
 	            case eSTATE_PLAYING: 
+                    if(!m_tuned)
+                    {
+                        LOG_INFO("event playing");
+                        m_eventPlaying = true;
+                        checkIsTuned();
+                    }
                     m_player->getParent()->getEventEmitter().send(OnPlayingEvent());
                     break;
 	            case eSTATE_STOPPING: break;
@@ -184,8 +225,11 @@ public:
     }
 private:
     AAMPPlayer* m_player;
-    bool m_tuned;
+    PlayerInstanceAAMP* m_aamp;
+    bool m_eventTuned, m_eventPlaying, m_didProgress, m_tuned;
     int m_duration;
+    double m_lastPosition;
+    gint64 m_tuneStartTime;
 };
 
 bool AAMPPlayer::canPlayURL(const std::string& url)
@@ -204,6 +248,10 @@ AAMPPlayer::AAMPPlayer(RDKMediaPlayer* parent) :
 
 AAMPPlayer::~AAMPPlayer()
 {
+    if(m_aampListener)
+        delete m_aampListener;
+    if(m_aampInstance)
+        delete m_aampInstance;
 }
 
 // RDKMediaPlayerImpl impl start
@@ -216,7 +264,7 @@ void AAMPPlayer::doInit()
 {
   LOG_INFO("AAMPPlayer started");
   m_aampInstance = new PlayerInstanceAAMP();
-  m_aampListener = new AAMPListener(this);
+  m_aampListener = new AAMPListener(this,  m_aampInstance);
   m_aampInstance->RegisterEvents(m_aampListener);
   IARM_Bus_Init("AAMPPlayer");
   IARM_Bus_Connect();
@@ -228,7 +276,10 @@ void AAMPPlayer::doInit()
 void AAMPPlayer::doLoad(const std::string& url)
 {
     //setSessionToken();
-
+    if(m_aampListener)
+    {
+        m_aampListener->reset();
+    }
     if(m_aampInstance)
     {
         m_aampInstance->Tune(url.c_str());
@@ -366,6 +417,7 @@ void AAMPPlayer::onProgress(const AAMPEvent & e)
 
 bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
 {
+    LOG_INFO("enter %s", url.c_str());
     int contentId = 0;
     
     if(url.find(".m3u8") != std::string::npos)
@@ -406,6 +458,8 @@ bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
             contentStr = "helio";
         }
     }
+
+    LOG_INFO("returning %d", contentId);
 
     if(contentId)
     {

@@ -309,6 +309,7 @@ void RMFPlayer::mediaFrameReceived()
     {
         getParent()->getEventEmitter().send(OnMetricLogEvent(tuneTimeLog.c_str()));
     }
+    getParent()->getEventEmitter().send(OnProgressEvent(this));//fire the first progress event to signal we are tuned
 }
 
 void RMFPlayer::mediaWarningReceived()

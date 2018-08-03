@@ -110,6 +110,7 @@ RDKMediaPlayer::RDKMediaPlayer() :
     m_speed(1),
     m_vidDecoderHandle(0),
     m_closedCaptionsEnabled(false),
+    m_urlQueued(false),
     m_autoPlay(false)
 {
     m_closedCaptionsOptions["textSize"] = "";
@@ -147,76 +148,90 @@ rtError RDKMediaPlayer::currentURL(rtString& s) const
     s = m_currentURL.c_str();
     return RT_OK;
 }
-rtError RDKMediaPlayer::setCurrentURL(rtString const& s)
+
+rtError RDKMediaPlayer::startQueuedTune()
 {
-    m_setURLTime = g_get_monotonic_time();
-    m_currentURL = s.cString();
-    LOG_INFO("%s %s\n", __PRETTY_FUNCTION__, m_currentURL.c_str());
-    m_vidDecoderHandle = 0;
-    m_duration = 0;
-    updateClosedCaptionsState();//m_vidDecoderHandle = 0, so CC will be disabled
+    LOG_INFO("enter %s\n", m_currentURL.c_str());
 
-    if(m_pImpl)
-    {
-        m_pImpl->doStop();
-        usleep(100000);//TODO REMOVE
-        m_pImpl = 0;
-    }
+    m_urlQueued = false;
 
-    for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
-    {
-        if( (*it)->doCanPlayURL(m_currentURL) )
-        {
-            LOG_INFO("RDKMediaPlayer::setCurrentURL: Reusing cached player");
-            m_pImpl = *it;
-        }
-    }
+    if(m_currentURL.size() == 0)
+        return RT_OK;
+
+    if(!m_pImpl || !m_pImpl->doCanPlayURL(m_currentURL))
+        m_pImpl = nullptr;
 
     if(!m_pImpl)
     {
-        if(AAMPPlayer::canPlayURL(m_currentURL))
+        for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
         {
-            LOG_INFO("RDKMediaPlayer::setCurrentURL:Creating AAMPPlayer");
-            m_pImpl = new AAMPPlayer(this);
+            if( (*it)->doCanPlayURL(m_currentURL) )
+            {
+                LOG_INFO("Reusing cached player");
+                m_pImpl = *it;
+            }
         }
-        else 
-        if(RMFPlayer::canPlayURL(m_currentURL))
+        if(!m_pImpl)
         {
-            LOG_INFO("RDKMediaPlayer::setCurrentURL:Creating RMFPlayer");
-            m_pImpl = new RMFPlayer(this);
-        }
-        else
-        {
-            LOG_WARNING("RDKMediaPlayer::setCurrentURL:Unsupported media type!");
-            return RT_FAIL;
-        }
+            if(AAMPPlayer::canPlayURL(m_currentURL))
+            {
+                LOG_INFO("Creating AAMPPlayer");
+                m_pImpl = new AAMPPlayer(this);
+            }
+            else 
+            if(RMFPlayer::canPlayURL(m_currentURL))
+            {
+                LOG_INFO("Creating RMFPlayer");
+                m_pImpl = new RMFPlayer(this);
+            }
+            else
+            {
+                LOG_WARNING("Unsupported media type!");
+                return RT_FAIL;
+            }
 
-        m_pImpl->doInit();
-        m_playerCache.push_back(m_pImpl);
-        getEventEmitter().send(OnPlayerInitializedEvent());
+            m_pImpl->doInit();
+            m_playerCache.push_back(m_pImpl);
+            getEventEmitter().send(OnPlayerInitializedEvent());
+        }
     }
-
     CALL_ON_MAIN_THREAD (
-        bool isCurrentURLEmpty = false;
-        {
-            isCurrentURLEmpty = self.m_currentURL.size() == 0;
-        }
-        LOG_INFO("currentURL='%s'", self.m_currentURL.c_str());
-        if (isCurrentURLEmpty)
-        {
-            self.m_pImpl->doStop();
-            self.m_isLoaded = false;
-        }
-        else
-        {
-            self.m_pImpl->doLoad(self.m_currentURL);
-            self.m_isLoaded = true;
-            if(self.m_autoPlay)
-                self.play();
-            self.m_pImpl->doSetVideoRectangle(self.m_videoRect);
-        }
+        LOG_INFO("Tuning player to %s\n", self.m_currentURL.c_str());
+        self.m_pImpl->setTuneState(TuneStart);
+        self.m_pImpl->doLoad(self.m_currentURL);
+        if(self.m_autoPlay)
+            self.play();
+        self.m_pImpl->doSetVideoRectangle(self.m_videoRect);
     );
-    return RT_OK;
+}
+
+rtError RDKMediaPlayer::setCurrentURL(rtString const& s)
+{
+    m_seekTime = 0;
+    m_speed = 0;
+    m_setURLTime = g_get_monotonic_time();
+    m_currentURL = s.cString();
+    LOG_INFO("enter %s\n", m_currentURL.c_str());
+    m_urlQueued = true;
+    m_duration = 0;
+    m_vidDecoderHandle = 0;
+
+    if(m_pImpl)
+    {
+        if(m_pImpl->getTuneState() == TuneStart)
+        {
+            LOG_INFO("%s: stopping player\n");
+            stop();
+            return RT_OK;
+        }
+        else if(m_pImpl->getTuneState() == TuneStop)
+        {
+            LOG_INFO("%s: waiting on player to stop\n");
+            return RT_OK;
+        }
+    }
+    LOG_INFO("calling startQueuedTune");
+    return startQueuedTune();
 }
 
 rtError RDKMediaPlayer::audioLanguage(rtString& s) const
@@ -592,8 +607,24 @@ rtError RDKMediaPlayer::stop()
     LOG_INFO("%s\n", __PRETTY_FUNCTION__);
     if(!m_pImpl)
         return RT_OK;
-    CALL_ON_MAIN_THREAD(self.m_pImpl->doStop(););
-    m_isLoaded = false;
+    if(m_pImpl->getTuneState() == TuneStop)
+        return RT_OK;
+    m_pImpl->setTuneState(TuneStop);
+    CALL_ON_MAIN_THREAD(
+        if(self.m_pImpl)
+        {
+            self.m_vidDecoderHandle = 0;
+            self.updateClosedCaptionsState();//m_vidDecoderHandle = 0 will be disabled
+            self.m_pImpl->doStop();
+            //usleep(1000000);//TODO REMOVE
+            self.m_pImpl->setTuneState(TuneNone);
+        }
+        if(self.m_urlQueued)
+        {
+            LOG_INFO("calling startQueuedTune");
+            self.startQueuedTune();
+        }
+    );
     return RT_OK;
 }
 

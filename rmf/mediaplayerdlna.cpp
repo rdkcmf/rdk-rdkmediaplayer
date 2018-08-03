@@ -727,7 +727,7 @@ void MediaPlayerDLNA::onReplyFinished(const ResponseInfo& response) {
 void MediaPlayerDLNA::onProgressTimerTimeout() {
   m_currentProgressTime += m_playbackRate;
 
-  LOG_VERBOSE("MediaPlayerDLNA::onProgressTimerTimeout: %f", m_currentProgressTime);
+  //LOG_VERBOSE("MediaPlayerDLNA::onProgressTimerTimeout: %f", m_currentProgressTime);
 
   // This logic may be extended for Live and DVR also; But for VOD; the rate is
   // 8.0 by the vod server; so to avoid wrong calculation, use conditional check

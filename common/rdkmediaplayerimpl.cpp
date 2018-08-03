@@ -19,7 +19,8 @@
 #include "rdkmediaplayerimpl.h"
 
 RDKMediaPlayerImpl::RDKMediaPlayerImpl(RDKMediaPlayer* parent) : 
-    m_parent(parent)
+    m_parent(parent),
+    m_tuneState(TuneNone)
 {
 }
 

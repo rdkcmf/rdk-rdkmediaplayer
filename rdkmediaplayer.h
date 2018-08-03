@@ -145,6 +145,7 @@ public:
     void updateVideoMetadata(const std::string& languages, const std::string& speeds, int duration, int width, int height);
 
 private:
+    rtError startQueuedTune();
     void updateClosedCaptionsState();
 
     std::vector<RDKMediaPlayerImpl*> m_playerCache;
@@ -162,11 +163,10 @@ private:
     float m_speed;
     float m_volume;
     float m_videoBufferLength;
-    bool m_isLoaded;
+    bool m_urlQueued;
     bool m_isBlocked;
     bool m_eissFilterStatus;
     bool m_isInProgressRecording;
-    bool m_isPaused;
     bool m_tsbEnabled;
     int32_t m_zoom;
     int32_t m_networkBufferSize;

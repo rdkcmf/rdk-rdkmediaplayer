@@ -31,6 +31,12 @@ struct ProgressData
     ProgressData() : position(0), duration(0), speed(0), start(-1), end(-1) {}
 };
 
+enum TuneState {
+    TuneNone,
+    TuneStart,
+    TuneStop
+};
+
 class RDKMediaPlayerImpl {
 public:
     RDKMediaPlayerImpl(RDKMediaPlayer* parent);
@@ -59,8 +65,18 @@ public:
     {
         return m_parent;
     }
+    TuneState getTuneState()
+    {
+        return m_tuneState;
+    }
+    void setTuneState(TuneState state)
+    {
+        m_tuneState = state;
+    }
+protected:
 private:
     RDKMediaPlayer* m_parent;
+    TuneState m_tuneState;
 };
 
 //Events

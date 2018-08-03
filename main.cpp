@@ -28,8 +28,15 @@
 #include "glib_tools.h"
 #include "hangdetector_utils.h"
 
+#ifdef ENABLE_SIGNAL_HANDLE
+#include <signal.h>
+#ifdef Q_OS_LINUX
+//#include <unistd.h>
+#endif
+#endif
 
 GMainLoop *gMainLoop = 0;
+int gPipefd[2];
 
 #ifdef ENABLE_BREAKPAD
 #include <client/linux/handler/exception_handler.h>
@@ -38,6 +45,7 @@ namespace
 {
 
 bool breakpadCallback(const google_breakpad::MinidumpDescriptor& /*descriptor*/, void* /*context*/, bool succeeded) {
+  rtRemoteShutdown();
   return succeeded;
 }
 
@@ -56,16 +64,23 @@ void installExceptionHandler() {
 }  // namespace
 #endif
 
-int gPipefd[2];
+#ifdef ENABLE_SIGNAL_HANDLER
+void signalHandler(int signum)
+{
+    printf("signalHandler %d\n", signum);
+    rtRemoteShutdown();
+    signal(signum, SIG_DFL);
+    kill(getpid(), signum);
+}
+#endif
 
 void rtMainLoopCb(void*)
 {
-  rtError err;
-  err = rtRemoteProcessSingleItem();
-//  if (err == RT_ERROR_QUEUE_EMPTY)
-//   LOG_TRACE("queue was empty upon processing event");
-//  else if (err != RT_OK)
-//   LOG_WARNING("rtRemoteProcessSingleItem() returned %d", err);
+    rtError err = rtRemoteProcessSingleItem();
+    if(err != RT_OK && err != RT_ERROR_QUEUE_EMPTY)
+    {
+        LOG_WARNING("rtRemoteProcessSingleItem() returned %d", err);
+    }
 }
 
 void rtRemoteCallback(void*)
@@ -85,6 +100,16 @@ int main(int argc, char *argv[]) {
 
   #ifdef ENABLE_BREAKPAD
   installExceptionHandler();
+  #endif
+
+  #ifdef ENABLE_SIGNAL_HANDLER
+  signal(SIGINT,  signalHandler);
+  signal(SIGQUIT, signalHandler);
+  signal(SIGTERM, signalHandler);
+  signal(SIGILL,  signalHandler);
+  signal(SIGABRT, signalHandler);
+  signal(SIGFPE,  signalHandler);
+  signal(SIGSEGV,  signalHandler);
   #endif
 
   gst_init(0, 0);
