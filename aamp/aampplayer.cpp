@@ -170,7 +170,7 @@ public:
             break;
         case AAMP_EVENT_JS_EVENT:
             break;
-        case AAMP_EVENT_VIDEO_METADATA:
+        case AAMP_EVENT_MEDIA_METADATA:
         {
             std::string lang;
             for(int i = 0; i < e.data.metadata.languageCount; ++i)
@@ -190,7 +190,7 @@ public:
             break;
         case AAMP_EVENT_TIMED_METADATA:
             break;
-        case AAMP_EVENT_STATUS_CHANGED:
+        case AAMP_EVENT_STATE_CHANGED:
             switch(e.data.stateChanged.state)
             {
 	            case eSTATE_IDLE: break;
