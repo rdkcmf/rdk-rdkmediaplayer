@@ -46,6 +46,8 @@ ENABLE_IPPV_CLIENT=" "
 ENABLE_VOD_SRC=" "
 ENABLE_RDK_LOGGER=" "
 ENABLE_BREAKPAD=" "
+BCM_SVP_CFLAGS=" "
+BCM_SVP_LDFLAGS=" "
 
 # Checks for library functions.
 #Add the subdirectories to be considered for building.
@@ -71,6 +73,18 @@ AC_ARG_ENABLE([directQAM],
               ],
               [echo "direct QAM is disabled"])
 AM_CONDITIONAL([ENABLE_DIRECT_QAM], [test x$ENABLE_DIRECT_QAM = xtrue])
+
+AC_ARG_ENABLE([svp-rdkmediaplayer],
+              AS_HELP_STRING([--enable-svp-rdkmediaplayer],[enable rdkmediaplayer svp (default is no)]),
+              [
+                case "${enableval}" in
+                 yes) BCM_SVP_CFLAGS=" -DBCM_SVP_ENABLED "
+                      BCM_SVP_LDFLAGS=" -lnexus ";;
+                  no) AC_MSG_ERROR([rdkmediaplayer svp is disabled]) ;;
+                   *) AC_MSG_ERROR([bad value ${enableval} for --enable-svp-rdkmediaplayer]) ;;
+                esac
+              ],
+              [echo "rdkmediaplayer svp enabled flag is not set"])
 
 AC_ARG_ENABLE([IPPVClient],
               AS_HELP_STRING([--enable-IPPVClient],[enable IPPV client (default is no)]),
@@ -144,4 +158,6 @@ AC_SUBST(ENABLE_IPPV_CLIENT)
 AC_SUBST(ENABLE_VOD_SRC)
 AC_SUBST(ENABLE_RDK_LOGGER)
 AC_SUBST(ENABLE_BREAKPAD)
+AC_SUBST(BCM_SVP_CFLAGS)
+AC_SUBST(BCM_SVP_LDFLAGS)
 AC_OUTPUT

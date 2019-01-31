@@ -28,6 +28,12 @@
 #include "glib_tools.h"
 #include "hangdetector_utils.h"
 
+#ifdef BCM_SVP_ENABLED
+#include "nexus_config.h"
+#include "nexus_platform.h"
+#include "nxclient.h"
+#endif
+
 #ifdef ENABLE_SIGNAL_HANDLE
 #include <signal.h>
 #ifdef Q_OS_LINUX
@@ -111,7 +117,9 @@ int main(int argc, char *argv[]) {
   signal(SIGFPE,  signalHandler);
   signal(SIGSEGV,  signalHandler);
   #endif
-
+  #ifdef BCM_SVP_ENABLED
+  NxClient_Join(NULL);
+  #endif
   gst_init(0, 0);
   log_init();
 
@@ -149,6 +157,9 @@ int main(int argc, char *argv[]) {
   ASSERT(rc == RT_OK);
 
   gst_deinit();
+  #ifdef BCM_SVP_ENABLED
+  NxClient_Uninit();
+  #endif
   g_source_unref(source);
 
   return 0;
