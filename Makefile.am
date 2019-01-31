@@ -29,6 +29,7 @@ AM_CXXFLAGS = -g \
 	$(GLIB_CFLAGS) \
 	$(GST_CFLAGS) \
 	$(JANSON_CFLAGS) \
+	$(BCM_SVP_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/common \
 	-I$(top_srcdir)/rmf \
@@ -105,7 +106,8 @@ rdkmediaplayer_LDFLAGS += \
 	$(CURL_LIBS) \
 	$(GLIB_LIBS) \
 	$(GST_LIBS) \
-	$(JANSON_LIBS)
+	$(JANSON_LIBS) \
+	$(BCM_SVP_LDFLAGS)
 
 if ENABLE_DIRECT_QAM
 AM_CXXFLAGS += -DENABLE_DIRECT_QAM
