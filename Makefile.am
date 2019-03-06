@@ -83,7 +83,8 @@ rdkmediaplayer_LDFLAGS = \
 if ENABLE_COMCAST_BUILD
 rdkmediaplayer_SOURCES += \
 	common/closedcaptions.h \
-	common/closedcaptions.cpp
+	common/closedcaptions.cpp \
+	ave-stubs/StubsForAVEPlayer.cpp
 rdkmediaplayer_LDFLAGS += \
     -lAVEPlayer \
     -lrdkCCReader \
