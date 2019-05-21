@@ -415,13 +415,22 @@ void AAMPPlayer::onProgress(const AAMPEvent & e)
     getParent()->getEventEmitter().send(OnProgressEvent(this));
 }
 
+/**
+ * @param url locator to be tuned
+ * @param contentStr output parameter, receives inferred contentType, or "unknown"
+ * @retval true if URL appears to be a DASH (.mpd) or HLS (.m3u8) locator
+ * @retval false with contentStr assigned "unsupported" if URL has unexpected extension
+ */
 bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
 {
-    LOG_INFO("enter %s", url.c_str());
+    LOG_INFO("setContentType(%s)", url.c_str());
     int contentId = 0;
-    
-    if(url.find(".m3u8") != std::string::npos)
-    {
+    bool retVal = false;
+
+    if(url.find(".m3u8") != std::string::npos || url.find(".mpd") != std::string::npos)
+    { // hls (.m3u8) and dash (.mpd) locators supported
+        // scan URL to infer content type 
+      
         if(url.find("cdvr") != std::string::npos)
         {
             contentId = 1;
@@ -452,24 +461,20 @@ bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
             contentId = 6;
             contentStr = "camera";
         }
-        else if(url.find(".mpd"))
+        else
         {
-            contentId = 7;
-            contentStr = "helio";
+            contentStr = "unknown";
         }
-    }
 
-    LOG_INFO("returning %d", contentId);
-
-    if(contentId)
-    {
-        return true;
+        retVal = true;
     }
     else
     {
-        contentStr = "unknown";
-        return false;
+        contentStr = "unsupported";
     }
+
+    LOG_INFO("contentID=%d", contentId);
+    return retVal;
 }
 
 /*
