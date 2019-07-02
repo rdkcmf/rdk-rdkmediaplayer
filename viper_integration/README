@@ -1,7 +1,0 @@
-git clone https://github.comcast.com/viper-player/playerplatform_js/releases
-see README.md for install/build instruction
-npm run dev:stb to build the player
-install browserify
-cp indexspark.js to src/ folder
-browserify -t cssify src/indexspark.js --require -o sparkbundle.js
-copy sparkbundle.js into rdkmediaplayer.js
