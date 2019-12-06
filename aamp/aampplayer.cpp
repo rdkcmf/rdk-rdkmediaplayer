@@ -418,7 +418,7 @@ void AAMPPlayer::onProgress(const AAMPEvent & e)
 /**
  * @param url locator to be tuned
  * @param contentStr output parameter, receives inferred contentType, or "unknown"
- * @retval true if URL appears to be a DASH (.mpd) or HLS (.m3u8) locator
+ * @retval true if URL appears to be a DASH (.mpd), HLS (.m3u8) locator or .mp4/.mp3 format
  * @retval false with contentStr assigned "unsupported" if URL has unexpected extension
  */
 bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
@@ -427,10 +427,21 @@ bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
     int contentId = 0;
     bool retVal = false;
 
-    if(url.find(".m3u8") != std::string::npos || url.find(".mpd") != std::string::npos)
+
+    if (strstr(url.c_str(), ".mp4"))
+    {
+        contentStr = "mp4";
+        retVal = true;
+    }
+    else if (strstr(url.c_str(), ".mp3"))
+    {
+        contentStr = "mp3";
+        retVal = true;
+    }
+    else if(url.find(".m3u8") != std::string::npos || url.find(".mpd") != std::string::npos)
     { // hls (.m3u8) and dash (.mpd) locators supported
         // scan URL to infer content type 
-      
+
         if(url.find("cdvr") != std::string::npos)
         {
             contentId = 1;
