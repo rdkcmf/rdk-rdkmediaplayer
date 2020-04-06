@@ -130,6 +130,14 @@ RDKMediaPlayer::RDKMediaPlayer() :
     m_closedCaptionsOptions["fontSize"] = "";
     m_audioLanguage = "en";
     m_loadStartTime = g_get_monotonic_time();//can be set more exactly via loadStartTime property
+  
+    m_seekTime = 0.0f;    //CID 82876 - Initializing values
+    m_volume = 0.0f;
+    m_videoBufferLength = 0.0f;
+    m_zoom = 0;
+    m_networkBufferSize = 0;
+    m_overshootTime = 0;
+    m_isBlocked = false;
 }
 
 RDKMediaPlayer::~RDKMediaPlayer()
@@ -220,13 +228,13 @@ rtError RDKMediaPlayer::setCurrentURL(rtString const& s)
     {
         if(m_pImpl->getTuneState() == TuneStart)
         {
-            LOG_INFO("%s: stopping player\n");
+            LOG_INFO("stopping player\n");//CID:127658 - NO argument available
             stop();
             return RT_OK;
         }
         else if(m_pImpl->getTuneState() == TuneStop)
         {
-            LOG_INFO("%s: waiting on player to stop\n");
+            LOG_INFO("waiting on player to stop\n");//CID:127658 - NO argument available
             return RT_OK;
         }
     }
@@ -398,7 +406,7 @@ rtError RDKMediaPlayer::videoBufferLength(float& t) const
 }
 rtError RDKMediaPlayer::setVideoBufferLength(float const& t)
 {
-    LOG_INFO("%s %d\n", __PRETTY_FUNCTION__, t);
+    LOG_INFO("%s %f\n", __PRETTY_FUNCTION__, t);//CID:127671 - Type cast since t is a float variable
     m_videoBufferLength = t;
     if(!m_pImpl)
         return RT_OK;
@@ -475,7 +483,7 @@ rtError RDKMediaPlayer::setClosedCaptionsOptions(rtObjectRef const& t)
         it != m_closedCaptionsOptions.end(); 
         it++)
     {
-        LOG_INFO("%s %s:%d\n", __PRETTY_FUNCTION__, it->first.c_str(), it->second.c_str());
+        LOG_INFO("%s %s:%s\n", __PRETTY_FUNCTION__, it->first.c_str(), it->second.c_str());//CID:127401 - Type casting for  it->second.c_str()
     }
     return RT_OK;
 }

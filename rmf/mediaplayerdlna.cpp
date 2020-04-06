@@ -283,6 +283,11 @@ MediaPlayerDLNA::MediaPlayerDLNA(MediaPlayerClient* client)
   if (pVODKeepPipelinePlaying && (strcasecmp(pVODKeepPipelinePlaying, "FALSE") == 0)) {
     m_VODKeepPipelinePlaying = false;
   }
+  m_maxTimeLoaded = 0.0f;  //CID 87555 - Initialized values
+  m_videoTimerHandler = 0;
+  m_audioTimerHandler = 0;
+  m_startedBuffering = false;
+  m_isVOD5XHackEnabled = true;
 }
 
 MediaPlayerDLNA::~MediaPlayerDLNA() {

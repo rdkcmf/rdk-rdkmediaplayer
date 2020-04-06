@@ -70,6 +70,12 @@ void ClosedCaptions::shutdown()
 ClosedCaptions::ClosedCaptions()
 {
     m_CCVisibilityStatus = 0;
+    m_isCCRendering = false;//CID:82758: Initialization
+    m_isCCEnabled = false;
+    m_isCCReaderStarted = true;
+    m_isParentalBlocked = true;
+    m_isCCStopedAtTrickMode = false;
+    m_viddecHandle = NULL;
 }
 
 
