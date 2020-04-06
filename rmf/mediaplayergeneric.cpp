@@ -43,7 +43,7 @@ bool loadMediaConfig(const char* configPath)
     return true;
 
   std::ifstream configStream(configPath);
-  if (!configStream)
+  if (!configStream.good())//CID:127521- Initialization
     return false;
 
   std::string configBuffer((std::istreambuf_iterator<char>(configStream)),
