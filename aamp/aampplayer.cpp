@@ -262,27 +262,41 @@ bool AAMPPlayer::doCanPlayURL(const std::string& url)
 
 void AAMPPlayer::doInit()
 {
-  LOG_INFO("AAMPPlayer started");
-  m_aampInstance = new PlayerInstanceAAMP();
-  m_aampListener = new AAMPListener(this,  m_aampInstance);
-  m_aampInstance->RegisterEvents(m_aampListener);
-  IARM_Bus_Init("AAMPPlayer");
-  IARM_Bus_Connect();
-#ifndef DISABLE_CLOSEDCAPTIONS
-  device::Manager::Initialize();
-#endif
+    try
+    {
+        LOG_INFO("AAMPPlayer started");
+        m_aampInstance = new PlayerInstanceAAMP();
+        m_aampListener = new AAMPListener(this,  m_aampInstance);
+        m_aampInstance->RegisterEvents(m_aampListener);
+        IARM_Bus_Init("AAMPPlayer");
+        IARM_Bus_Connect();
+        #ifndef DISABLE_CLOSEDCAPTIONS
+        device::Manager::Initialize();
+        #endif
+    }
+    catch(...)
+    {
+         LOG_INFO("DeviceSettings exception caught in %s\n", __FUNCTION__);  //CID:113319 - Uncaught exception
+    }
 }
 
 void AAMPPlayer::doLoad(const std::string& url)
 {
-    //setSessionToken();
-    if(m_aampListener)
+    try
     {
-        m_aampListener->reset();
+	//setSessionToken();
+	if(m_aampListener)
+	{
+        	m_aampListener->reset();
+	}
+	if(m_aampInstance)
+	{
+		m_aampInstance->Tune(url.c_str());
+	}
     }
-    if(m_aampInstance)
+    catch(...)
     {
-        m_aampInstance->Tune(url.c_str());
+	LOG_INFO("Device Illegal argument exception caught in %s\n", __FUNCTION__);  //CID:121723 - Uncaught exception
     }
 }
 
@@ -297,39 +311,75 @@ void AAMPPlayer::doSetVideoRectangle(const IntRect& rect)
 
 void AAMPPlayer::doSetAudioLanguage(std::string& lang)
 {
-  LOG_INFO("set lang: %s", lang.c_str());
-  m_aampInstance->SetLanguage(lang.c_str());
+  try
+  {
+      LOG_INFO("set lang: %s", lang.c_str());
+      m_aampInstance->SetLanguage(lang.c_str());
+  }
+  catch(...)
+  {
+      LOG_INFO("Device Illegal Argument Exception caught in %s\n", __FUNCTION__);  //CID:121706 - Uncaught exception
+  }
 }
 
 void AAMPPlayer::doPlay()
 {
-    LOG_INFO("AAMPPlayer::doPlay()");
-	if(m_aampInstance)
+    try
+    {
+    	LOG_INFO("AAMPPlayer::doPlay()");
+	    if(m_aampInstance)
 		m_aampInstance->SetRate(1);
+    }
+    catch(...)
+    {
+	LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121709 - Uncaught exception
+    }
 }
 
 void AAMPPlayer::doPause()
 {
-    LOG_INFO("AAMPPlayer::doPause()");
-	if(m_aampInstance)
+    try
+    {
+        LOG_INFO("AAMPPlayer::doPause()");
+    	    if(m_aampInstance)
 		m_aampInstance->SetRate(0);
+    }
+    catch(...)
+    {
+	LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121724 - Uncaught exception	
+    }
 }
 
 void AAMPPlayer::doSetPosition(float position)
 {
-    if (!std::isnan(position))
+    try
     {
-        LOG_INFO("set currentTime: %f", position);
-        if(m_aampInstance)
-            m_aampInstance->Seek(position/1000);
+        if (!std::isnan(position))
+        {
+            LOG_INFO("set currentTime: %f", position);
+            if(m_aampInstance)
+                m_aampInstance->Seek(position/1000);
+        }
     }
+    catch(...)
+    {
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121705 - Uncaught exception
+    }
+
 }
 
 void AAMPPlayer::doSeekToLive()
 {
-	LOG_INFO("seekToLive()");
-	if(m_aampInstance)
-		m_aampInstance->SeekToLive();
+	try
+	{
+		LOG_INFO("seekToLive()");
+		if(m_aampInstance)
+			m_aampInstance->SeekToLive();
+	}
+	catch(...)
+	{
+		LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121721 - Uncaught exceptio
+	}
 }
 
 
@@ -345,16 +395,30 @@ void AAMPPlayer::doStop()
 
 void AAMPPlayer::doChangeSpeed(float speed, int32_t overshootTime)
 {
-    LOG_INFO("doChangeSpeed(%f, %d)", speed, overshootTime);
-    if(m_aampInstance)
-    	m_aampInstance->SetRate(speed, overshootTime);
+    try
+    {
+        LOG_INFO("doChangeSpeed(%f, %d)", speed, overshootTime);
+        if(m_aampInstance)
+    	    m_aampInstance->SetRate(speed, overshootTime);
+    }
+    catch(...)
+    {
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121707 - Uncaught exception
+    }
 }
 
 void AAMPPlayer::doSetSpeed(float speed)
 {
-    LOG_INFO("doSetSpeed(%f)", speed);
-    if(m_aampInstance)
-    	m_aampInstance->SetRate(speed);
+    try
+    {
+        LOG_INFO("doSetSpeed(%f)", speed);
+        if(m_aampInstance)
+    	    m_aampInstance->SetRate(speed);
+    }
+    catch(...)
+    {
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121701 - Uncaught exception
+    }
 }
 
 void AAMPPlayer::doSetBlocked(bool blocked)
