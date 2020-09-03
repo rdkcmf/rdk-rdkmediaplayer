@@ -206,6 +206,12 @@ bool MediaPlayerGeneric::rmf_load(const std::string &url)
 
   configureElement(pipeline());
 
+  // use native audio and video formats
+  int flags = 0;
+  g_object_get(pipeline(), "flags", &flags, NULL);
+  flags |= 0x60;
+  flags &= ~0x400;
+  g_object_set(pipeline(), "flags", flags, NULL);
   std::string videoSinkName;
   if(getenv("PLAYERSINKBIN_USE_WESTEROSSINK"))
   {
