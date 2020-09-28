@@ -211,6 +211,7 @@ rtError RDKMediaPlayer::startQueuedTune()
             self.play();
         self.m_pImpl->doSetVideoRectangle(self.m_videoRect);
     );
+    return RT_OK;
 }
 
 rtError RDKMediaPlayer::setCurrentURL(rtString const& s)
