@@ -138,6 +138,10 @@ RDKMediaPlayer::RDKMediaPlayer() :
     m_networkBufferSize = 0;
     m_overshootTime = 0;
     m_isBlocked = false;
+    m_duration = 0;
+    m_tsbEnabled = false;
+    m_isInProgressRecording = false;
+    m_eissFilterStatus = false;
 }
 
 RDKMediaPlayer::~RDKMediaPlayer()

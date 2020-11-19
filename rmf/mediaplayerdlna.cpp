@@ -53,6 +53,11 @@
 #define RMF_VOD_BEGIN_PLAYBACK 7
 #define RMF_VOD_BAD_START_POSITION_VAL 0x7FFFFFFFu
 
+#define CURL_EASY_SETOPT(curl, CURLoption ,option)  \
+        if (curl_easy_setopt(curl, CURLoption ,option) != 0) {\
+                LOG_ERROR("Failed at curl_easy_setopt %d \n", curl);   \
+        }  //CID:127965 - checked return
+
 typedef std::vector<std::string> headers_t;
 
 struct RequestInfo {
@@ -448,20 +453,20 @@ void MediaPlayerDLNA::fetchWithCurl(
   std::string payload_buf;
 
   curl_handle = curl_easy_init();
-  curl_easy_setopt(curl_handle, CURLOPT_URL, request.url.c_str());
-  curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-  curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, kCurlTimeoutInSeconds);
-  curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, write_callback);
-  curl_easy_setopt(curl_handle, CURLOPT_HEADERDATA,
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_URL, request.url.c_str());
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_FOLLOWLOCATION, 1);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_TIMEOUT, kCurlTimeoutInSeconds);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_HEADERFUNCTION, write_callback);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_HEADERDATA,
                    reinterpret_cast<void *>(&headers_buf));
   // We're not interested in body, but if we do
   // curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback);
   // curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&payload_buf);
   // curl_easy_setopt(curl_handle, CURLOPT_HTTPGET, 1L);
-  curl_easy_setopt(curl_handle, CURLOPT_NOBODY, 1);
-  curl_easy_setopt(curl_handle, CURLOPT_HEADER, 1);
-  curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1);
-  curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_NOBODY, 1);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_HEADER, 1);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_NOPROGRESS, 1);
+  CURL_EASY_SETOPT(curl_handle, CURLOPT_NOSIGNAL, 1);
   // curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1);
 
   if (!request.headers.empty()) {
@@ -471,7 +476,7 @@ void MediaPlayerDLNA::fetchWithCurl(
       const std::string& header = *cit;
       headers = curl_slist_append(headers, header.c_str());
     }
-    curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
+    CURL_EASY_SETOPT(curl_handle, CURLOPT_HTTPHEADER, headers);
   }
 
   res = curl_easy_perform(curl_handle);

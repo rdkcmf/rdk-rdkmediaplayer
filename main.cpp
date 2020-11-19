@@ -76,7 +76,11 @@ void installExceptionHandler() {
 void signalHandler(int signum)
 {
     printf("signalHandler %d\n", signum);
-    rtRemoteShutdown();
+    rtError e = rtRemoteShutdown();
+    if (e != RT_OK)
+    {
+       printf("rtRemoteShutdown failed: %s \n", rtStrError(e));
+    }  //CID:103340 - Checked return
     signal(signum, SIG_DFL);
     kill(getpid(), signum);
 }
@@ -103,7 +107,6 @@ void rtRemoteCallback(void*)
 int main(int argc, char *argv[]) {
   Utils::HangDetector hangDetector;
   hangDetector.start();
-
   prctl(PR_SET_PDEATHSIG, SIGHUP);
 
   #ifdef ENABLE_BREAKPAD
@@ -120,7 +123,10 @@ int main(int argc, char *argv[]) {
   signal(SIGSEGV,  signalHandler);
   #endif
   #ifdef BCM_SVP_ENABLED
-  NxClient_Join(NULL);
+  NEXUS_Error rt;
+  rt = NxClient_Join(NULL);
+  ASSERT(rt != NEXUS_SUCCESS);
+   //CID:96870 - checked return
   #endif
   gst_init(0, 0);
   log_init();
