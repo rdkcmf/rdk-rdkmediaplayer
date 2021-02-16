@@ -285,7 +285,7 @@ void RMFPlayer::mediaFrameReceived()
 
         char buffer[TUNE_LOG_MAX_SIZE];
 
-        int len = snprintf(buffer, TUNE_LOG_MAX_SIZE, "QAM_TUNE_TIME:TYPE-%s,%u,%u,%u,%u,%u",
+        int len = sprintf_s(buffer, sizeof(buffer), "QAM_TUNE_TIME:TYPE-%s,%u,%u,%u,%u,%u",
                            m_contentType.c_str(),
                            TO_MS(m_loadedTime - m_loadStartTime),        // time taken by load
                            TO_MS(m_loadCompleteTime - m_loadStartTime),  // time of onLoaded event
@@ -296,6 +296,8 @@ void RMFPlayer::mediaFrameReceived()
         if (len > 0)
         {
             tuneTimeLog = std::string(buffer, len);
+        } else {
+           ERR_CHK(len);
         }
 
         m_setURLTime = m_loadStartTime = 0;

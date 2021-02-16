@@ -23,6 +23,8 @@
 #include <cassert>
 #include <cstring>
 
+#include "safec_lib.h"
+
 /**
  * Enable rdk_logger. If not defined, fallback to stdout logging.
  */

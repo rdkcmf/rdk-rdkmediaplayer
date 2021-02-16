@@ -124,10 +124,19 @@ struct OnStatusEvent: public Event
         {
             if (!value)
                 return RT_FAIL;
+            if(name == NULL) { return RT_FAIL; }
             ProgressData pd;
             m_player->getProgressData(&pd);
-            if (!strcmp(name, "position")) { *value = pd.position; return RT_OK; }
-            if (!strcmp(name, "duration")) { *value = pd.duration; return RT_OK; }
+            errno_t safec_rc = -1;
+            int ind = -1;
+
+            safec_rc = strcmp_s("position", strlen("position"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.position; return RT_OK; }
+
+            safec_rc = strcmp_s("duration", strlen("duration"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.duration; return RT_OK; }
             return rtMapObject::Get(name, value);
         }
         RDKMediaPlayerImpl* m_player;
@@ -155,13 +164,32 @@ struct OnProgressEvent: public Event
         {
             if (!value)
                 return RT_FAIL;
+            if(name == NULL) { return RT_FAIL; }
             ProgressData pd;
             m_player->getProgressData(&pd);
-            if (!strcmp(name, "position")) { *value = pd.position; return RT_OK; }
-            if (!strcmp(name, "duration")) { *value = pd.duration; return RT_OK; }
-            if (!strcmp(name, "speed")) { *value = pd.speed; return RT_OK; }
-            if (!strcmp(name, "start")) { *value = pd.start; return RT_OK; }
-            if (!strcmp(name, "end")) { *value = pd.end; return RT_OK; }
+            errno_t safec_rc = -1;
+            int ind = -1;
+
+            safec_rc = strcmp_s("position", strlen("position"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.position; return RT_OK; }
+
+            safec_rc = strcmp_s("duration", strlen("duration"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.duration; return RT_OK; }
+
+            safec_rc = strcmp_s("speed", strlen("speed"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.speed; return RT_OK; }
+
+            safec_rc = strcmp_s("start", strlen("start"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.start; return RT_OK; }
+
+            safec_rc = strcmp_s("end", strlen("end"), name, &ind);
+            ERR_CHK(safec_rc);
+            if((safec_rc == EOK) && (!ind)) { *value = pd.end; return RT_OK; }
+
             return rtMapObject::Get(name, value);
         }
         RDKMediaPlayerImpl* m_player;

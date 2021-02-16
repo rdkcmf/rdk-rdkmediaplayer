@@ -280,8 +280,15 @@ MediaPlayerDLNA::MediaPlayerDLNA(MediaPlayerClient* client)
 
   char *pVODKeepPipelinePlaying = NULL;
   pVODKeepPipelinePlaying = getenv("RMF_VOD_KEEP_PIPELINE");
-  if (pVODKeepPipelinePlaying && (strcasecmp(pVODKeepPipelinePlaying, "FALSE") == 0)) {
-    m_VODKeepPipelinePlaying = false;
+  errno_t safec_rc = -1;
+  int ind = -1;
+
+  if (pVODKeepPipelinePlaying ) {
+      safec_rc = strcasecmp_s("FALSE", strlen("FALSE"), pVODKeepPipelinePlaying, &ind);
+      ERR_CHK(safec_rc);
+      if((safec_rc == EOK) && (ind == 0)) {
+          m_VODKeepPipelinePlaying = false;
+      }
   }
   m_maxTimeLoaded = 0.0f;  //CID 87555 - Initialized values
   m_videoTimerHandler = 0;
@@ -525,14 +532,20 @@ void MediaPlayerDLNA::fetchHeadersForTrickMode(float speed, double pos) {
   char speed_str[64];
   char time_str[64];
 
-  snprintf(speed_str, sizeof(speed_str), "speed=%f", speed);
+  errno_t safec_rc =sprintf_s(speed_str, sizeof(speed_str), "speed=%f", speed);
+  if(safec_rc < EOK) {
+     ERR_CHK(safec_rc);
+  }
   LOG_INFO("MediaPlayerDLNA: fetchHeadersForTrickMode speed: [%s]", speed_str);
 
   unsigned h = 0, m = 0;
   float s = 0;
   time_to_hms(pos, h, m, s);
 
-  snprintf(time_str, sizeof(time_str), "npt=%02u:%02u:%.2f-", h, m, s);
+  safec_rc =sprintf_s(time_str, sizeof(time_str), "npt=%02u:%02u:%.2f-", h, m, s);
+  if(safec_rc < EOK) {
+     ERR_CHK(safec_rc);
+  }
   LOG_INFO("MediaPlayerDLNA: fetchHeadersForTrickMode position: [%s] (%f)", time_str, pos);
 
   RequestInfo request;
@@ -757,11 +770,18 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
 
   char *pVOD5XHack = NULL;
   pVOD5XHack = getenv("RMF_VOD_5X_MITIGATION");
-  if (pVOD5XHack && (strcasecmp(pVOD5XHack, "TRUE") == 0)) 
-  {
-      LOG_WARNING("RMF_VOD_5X_MITIGATION is set to TRUE..\n");
-      m_isVOD5XHackEnabled = true;;
+  errno_t safec_rc = -1;
+  int ind = -1;
+
+  if (pVOD5XHack) {
+      safec_rc = strcasecmp_s("TRUE", strlen("TRUE"), pVOD5XHack, &ind);
+      ERR_CHK(safec_rc);
+      if((safec_rc == EOK) && (ind == 0)) {
+           LOG_WARNING("RMF_VOD_5X_MITIGATION is set to TRUE..\n");
+           m_isVOD5XHackEnabled = true;
+      }
   }
+
   if (httpUrl.empty()) {
       LOG_ERROR("Empty URL, skipping RMF pipeline construction");
       return false;
@@ -784,7 +804,11 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
   char ocapUrl[32];
   uint c, len;
   if (m_url.find("ocap://") != std::string::npos) {
-    strcpy(url, m_url.c_str());
+    safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     p= strstr(url,"ocap://0x");
     len= strlen("ocap://0x");
     c= p[len];
@@ -796,7 +820,11 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
       if (len >= (sizeof(ocapUrl) - 1))
         break;
     }
-    strncpy(ocapUrl, p, len);
+    safec_rc = strncpy_s(ocapUrl, sizeof(ocapUrl), p, len);
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     ocapUrl[len]= '\0';
     LOG_INFO("QAM service: %s", ocapUrl);
 
@@ -809,7 +837,11 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
   }
 #ifdef IPPV_CLIENT_ENABLED
   else if (m_url.find("ippv://") != std::string::npos) {
-    strcpy(url, m_url.c_str());
+    safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     p= strstr(url,"ippv://0x");
     len= strlen("ippv://0x");
     c= p[len];
@@ -820,28 +852,52 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
       if (len >= (sizeof(ocapUrl) - 1))
         break;
     }
-    strncpy(ocapUrl, p, len);
+    safec_rc = strncpy_s(ocapUrl, sizeof(ocapUrl), p, len);
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     ocapUrl[len]= '\0';
     LOG_INFO("IPPV service: %s", ocapUrl);
-    strcpy(url, ocapUrl);
+    safec_rc = strcpy_s(url, sizeof(url), ocapUrl);
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     m_hnsource = NULL;
     m_source = new RMFiPPVSrc();
   }
 #endif
 #ifdef USE_VODSRC
   else if (m_url.find("vod://") != std::string::npos) {
-    strcpy(url, m_url.c_str());
+    safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     p= strstr(url,"vod://");
     char *tempstr = strchr(p,'&');
     //char *tempstr1 = strchr(p,'\0');
     if(tempstr != NULL) {
-      strncpy(ocapUrl, p, tempstr-p);
+      safec_rc = strncpy_s(ocapUrl, sizeof(ocapUrl), p, tempstr-p);
+      if(safec_rc != EOK) {
+         ERR_CHK(safec_rc);
+         return false;
+      }
       ocapUrl[tempstr-p]= '\0';
     } else {
-      strcpy(ocapUrl,p);
+      safec_rc = strcpy_s(ocapUrl, sizeof(ocapUrl), p);
+      if(safec_rc != EOK) {
+         ERR_CHK(safec_rc);
+         return false;
+      }
     }
     LOG_INFO("vod service: %s", ocapUrl);
-    strcpy(url, ocapUrl);
+    safec_rc = strcpy_s(url, sizeof(url), ocapUrl);
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     m_hnsource = NULL;
     m_source = new RMFVODSrc();
     m_VODKeepPipelinePlaying = false;
@@ -850,7 +906,11 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
   else {
 #endif
 
-    strcpy(url, m_url.c_str());
+    safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     m_source = new HNSource();
     m_hnsource = dynamic_cast<HNSource *>(m_source);
 
@@ -925,17 +985,33 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
     char url[1024];
     char ipaddr[20];
     char location[100];
-    snprintf(url, sizeof(url), "%s", m_url.c_str());
-    snprintf(ipaddr, sizeof(ipaddr), "127.0.0.1");
+    safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
+    safec_rc = strcpy_s(ipaddr, sizeof(ipaddr), "127.0.0.1");
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+    }
     char* ip_start_pos = strstr(url, "http://") + strlen("http://");
     if (NULL != ip_start_pos) {
       char* ip_end_pos = strstr(ip_start_pos, ":");
       if (NULL != ip_end_pos) {
-        strncpy(ipaddr, ip_start_pos, ip_end_pos - ip_start_pos);
+        safec_rc = strncpy_s(ipaddr, sizeof(ipaddr), ip_start_pos, ip_end_pos - ip_start_pos);
+        if(safec_rc != EOK) {
+          ERR_CHK(safec_rc);
+          return false;
+        }
         ipaddr[ip_end_pos - ip_start_pos] = 0;
       }
     }
-    snprintf(location, sizeof(location), "/opt/SNK_IN_%s.ts", ipaddr);
+	safec_rc = sprintf_s(location, sizeof(location), "/opt/SNK_IN_%s.ts", ipaddr);
+	if(safec_rc < EOK) {
+       ERR_CHK(safec_rc);
+       return false;
+	}
     if (m_dfsink->init() != RMF_RESULT_SUCCESS) {
       LOG_ERROR("Failed to initialize fd sink");
       return false;
@@ -1054,7 +1130,11 @@ void MediaPlayerDLNA::rmf_play() {
     uint c, len;
     char eid[32];
 
-    strcpy(url, m_url.c_str());
+    errno_t safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
+    if(safec_rc != EOK) {
+       ERR_CHK(safec_rc);
+       return;
+    }
     p= strstr(url,"token=");
     len= 6;
     if (p != NULL) {
@@ -1064,7 +1144,12 @@ void MediaPlayerDLNA::rmf_play() {
         if (len >= (sizeof(eid) - 1))
           break;
       }
-      strncpy(eid, p+6, len-6);
+      safec_rc = strncpy_s(eid, sizeof(eid), p+6, len-6);
+      if(safec_rc != EOK) {
+         ERR_CHK(safec_rc);
+         return;
+      }
+
       eid[len-6]= '\0';
       eIdValue = atoi(eid);
       LOG_INFO("play:: ippv asset: EID='%s',%d", eid, eIdValue);

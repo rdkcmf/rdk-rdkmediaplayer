@@ -168,10 +168,14 @@ void log(LogLevel level,
   va_list argptr;
   va_start(argptr, format);
   vsnprintf(formatted_string, FMT_MSG_SIZE, format, argptr);
-  snprintf(formatted_string2, FMT_MSG_SIZE, "%s:%s:%d %s", func,
+  errno_t safec_rc =sprintf_s(formatted_string2, sizeof(formatted_string2), "%s:%s:%d %s", func,
                                             basename(file),
                                             line,
                                             formatted_string);
+  if(safec_rc < EOK) {
+    ERR_CHK(safec_rc);
+  }
+
   va_end(argptr);
 
   // Currently, we use customized layout 'comcast_dated_nocr' in log4c.
@@ -231,7 +235,7 @@ static char* timestamp(char* buff) {
   gmtime_r(&spec.tv_sec, &tm);
   long ms = spec.tv_nsec / 1.0e6;
 
-  sprintf(buff, "%02d%02d%02d-%02d:%02d:%02d.%03ld",
+  errno_t safec_rc = sprintf_s(buff,0xFF, "%02d%02d%02d-%02d:%02d:%02d.%03ld",
                 tm.tm_year + (1900-2000),
                 tm.tm_mon + 1,
                 tm.tm_mday,
@@ -239,6 +243,9 @@ static char* timestamp(char* buff) {
                 tm.tm_min,
                 tm.tm_sec,
                 ms);
+  if(safec_rc < EOK) {
+    ERR_CHK(safec_rc);
+  }
 
   return buff;
 }
