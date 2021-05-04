@@ -22,6 +22,9 @@
 #include <sys/stat.h>
 #include <glib.h>
 #include <gst/gst.h>
+#ifdef ENABLE_BREAKPAD
+#include <client/linux/handler/exception_handler.h>
+#endif
 #include <rtRemote.h>
 #include "rdkmediaplayer.h"
 #include "logger.h"
@@ -45,7 +48,6 @@ GMainLoop *gMainLoop = 0;
 int gPipefd[2];
 
 #ifdef ENABLE_BREAKPAD
-#include <client/linux/handler/exception_handler.h>
 
 namespace
 {
