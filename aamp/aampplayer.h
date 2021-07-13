@@ -54,6 +54,7 @@ public:
     void doSetNetworkBufferSize(int32_t networkBufferSize);
     void doSetVideoBufferLength(float videoBufferLength);
     void getProgressData(ProgressData* progressData);
+    bool isManagementSession() const { return false; };
 private:
     static bool setContentType(const std::string &uri, std::string& contentType);
     void onProgress(const AAMPEvent& progressEvent);

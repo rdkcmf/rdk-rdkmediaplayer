@@ -24,6 +24,8 @@
 #include "logger.h"
 #include "rmfplayer.h"
 #include "aampplayer.h"
+#include "rmf_osal_init.h"
+#include <jansson.h>
 
 struct ReleaseOnScopeEnd {
     rtObject& obj;
@@ -104,11 +106,14 @@ rtDefineMethod    (RDKMediaPlayer, setAdditionalAuth);
 rtDefineMethod    (RDKMediaPlayer, setListener);
 rtDefineMethod    (RDKMediaPlayer, delListener);
 rtDefineMethod    (RDKMediaPlayer, destroy);
+rtDefineMethod    (RDKMediaPlayer, open);
+rtDefineMethod    (RDKMediaPlayer, sendCASData);
 
 RDKMediaPlayer::RDKMediaPlayer() :
     m_pImpl(0),
     m_speed(1),
     m_vidDecoderHandle(0),
+    m_duration(0.0f),
     m_closedCaptionsEnabled(false),
     m_urlQueued(false),
     m_autoPlay(false)
@@ -130,7 +135,7 @@ RDKMediaPlayer::RDKMediaPlayer() :
     m_closedCaptionsOptions["fontSize"] = "";
     m_audioLanguage = "en";
     m_loadStartTime = g_get_monotonic_time();//can be set more exactly via loadStartTime property
-  
+
     m_seekTime = 0.0f;    //CID 82876 - Initializing values
     m_volume = 0.0f;
     m_videoBufferLength = 0.0f;
@@ -142,6 +147,7 @@ RDKMediaPlayer::RDKMediaPlayer() :
     m_tsbEnabled = false;
     m_isInProgressRecording = false;
     m_eissFilterStatus = false;
+    rmf_osal_init( "/etc/rmfconfig.ini", "/etc/debug.ini" );
 }
 
 RDKMediaPlayer::~RDKMediaPlayer()
@@ -177,7 +183,7 @@ rtError RDKMediaPlayer::startQueuedTune()
     {
         for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
         {
-            if( (*it)->doCanPlayURL(m_currentURL) )
+            if( !((*it)->isManagementSession()) && (*it)->doCanPlayURL(m_currentURL) )
             {
                 LOG_INFO("Reusing cached player");
                 m_pImpl = *it;
@@ -190,7 +196,7 @@ rtError RDKMediaPlayer::startQueuedTune()
                 LOG_INFO("Creating AAMPPlayer");
                 m_pImpl = new AAMPPlayer(this);
             }
-            else 
+            else
             if(RMFPlayer::canPlayURL(m_currentURL))
             {
                 LOG_INFO("Creating RMFPlayer");
@@ -464,8 +470,8 @@ rtError RDKMediaPlayer::setClosedCaptionsEnabled(rtString const& t)
 
 rtError RDKMediaPlayer::closedCaptionsOptions(rtObjectRef& t) const
 {
-    for(std::map<std::string, std::string>::const_iterator it = m_closedCaptionsOptions.begin(); 
-        it != m_closedCaptionsOptions.end(); 
+    for(std::map<std::string, std::string>::const_iterator it = m_closedCaptionsOptions.begin();
+        it != m_closedCaptionsOptions.end();
         it++)
     {
         t.set(it->first.c_str(), rtValue(it->second.c_str()));
@@ -475,8 +481,8 @@ rtError RDKMediaPlayer::closedCaptionsOptions(rtObjectRef& t) const
 
 rtError RDKMediaPlayer::setClosedCaptionsOptions(rtObjectRef const& t)
 {
-    for(std::map<std::string, std::string>::iterator it = m_closedCaptionsOptions.begin(); 
-        it != m_closedCaptionsOptions.end(); 
+    for(std::map<std::string, std::string>::iterator it = m_closedCaptionsOptions.begin();
+        it != m_closedCaptionsOptions.end();
         it++)
     {
         rtValue v;
@@ -484,8 +490,8 @@ rtError RDKMediaPlayer::setClosedCaptionsOptions(rtObjectRef const& t)
             it->second = v.convert<rtString>().cString();
     }
 
-    for(std::map<std::string, std::string>::iterator it = m_closedCaptionsOptions.begin(); 
-        it != m_closedCaptionsOptions.end(); 
+    for(std::map<std::string, std::string>::iterator it = m_closedCaptionsOptions.begin();
+        it != m_closedCaptionsOptions.end();
         it++)
     {
         LOG_INFO("%s %s:%s\n", __PRETTY_FUNCTION__, it->first.c_str(), it->second.c_str());//CID:127401 - Type casting for  it->second.c_str()
@@ -700,6 +706,111 @@ rtError RDKMediaPlayer::destroy()
     exit(0);
 }
 
+rtError RDKMediaPlayer::open(rtString openData, rtString resp)
+{
+    LOG_INFO("%s, openData = %s\n", __PRETTY_FUNCTION__, openData.cString());
+    rtError ret = RT_OK;
+    json_error_t error;
+    json_t *root = json_loads(openData.cString(), 0, &error);
+
+    if (!root) {
+        LOG_INFO("json error on line %d: %s\n", error.line, error.text);
+        return RT_FAIL;
+    }
+
+    std::string url = json_string_value(json_object_get(root, "mediaurl"));
+    std::string mode = json_string_value(json_object_get(root, "mode"));
+    std::string manage = json_string_value(json_object_get(root, "manage"));
+    // For CAS Management Session
+    if((mode == "MODE_NONE") &&
+        (manage == "MANAGE_FULL" || manage == "MANAGE_NO_PSI" || manage == "MANAGE_NO_TUNER"))
+    {
+        std::string casocdmid = json_string_value(json_object_get(root, "casocdmid"));
+
+        if(casocdmid.empty() || (manage == "MANAGE_FULL" && url.empty())) {
+            LOG_INFO("ocdmcasid is mandatory for CAS management session or url is empty");
+            json_decref(root);
+            return RT_FAIL;
+        }
+
+        for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
+        {
+            if( (*it)->isManagementSession() )
+            {
+                LOG_INFO("Reusing cached player");
+                m_pImpl = *it;
+                break;
+            }
+        }
+
+        if(!m_pImpl)
+        {
+            m_pImpl = new RMFPlayer(this);
+            m_pImpl->doInit();
+            m_playerCache.push_back(m_pImpl);
+            if(manage == "MANAGE_FULL") {
+                setCurrentURL(url.c_str());
+            }
+            std::string data = openData.cString();
+#ifdef USE_EXTERNAL_CAS
+            ((RMFPlayer *)m_pImpl)->open(data);
+            ((RMFPlayer *)m_pImpl)->registerCASData();
+#endif
+        }
+        else
+        {
+            LOG_INFO("CAS Managment session is already avialable");
+        }
+        resp = (std::to_string((uint32_t)m_pImpl)).c_str();
+        LOG_INFO("resp = %x", resp.cString());
+    }
+    // For Live Playback Session
+    else if ((mode == "MODE_LIVE" || mode == "MODE_PLAYBACK") && manage == "MANAGE_NONE") {
+        if (url.empty())
+        {
+            LOG_INFO("MediaUrl is mandatory when ModeType is LIVE, PLAYBACK");
+            json_decref(root);
+            return RT_FAIL;
+        }
+        setCurrentURL(url.c_str());
+        std::string data = openData.cString();
+#ifdef USE_EXTERNAL_CAS
+        ((RMFPlayer *)m_pImpl)->open(data);
+#endif
+        for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
+        {
+            if( !((*it)->isManagementSession()) && (*it)->doCanPlayURL(m_currentURL) )
+            {
+                LOG_INFO("Reusing cached player");
+                resp = (std::to_string((uint32_t)*it)).c_str();
+                LOG_INFO("resp = %x", resp.cString());
+            }
+        }
+    }
+    else {
+        LOG_INFO("Invalid Option to Open media or cas management session ...");
+        json_decref(root);
+        return RT_FAIL;
+    }
+
+    json_decref(root);
+
+    return RT_OK;
+}
+
+rtError RDKMediaPlayer::sendCASData(rtString data, rtString resp)
+{
+    LOG_INFO("%s\n", __PRETTY_FUNCTION__);
+    if(!m_pImpl)
+        return RT_FAIL;
+    std::string strData = data.cString();
+#ifdef USE_EXTERNAL_CAS
+    ((RMFPlayer *)m_pImpl)->sendCASData(strData);
+#endif
+
+    return RT_OK;
+}
+
 bool RDKMediaPlayer::getIsBlocked() const
 {
     return m_isBlocked;
@@ -736,6 +847,7 @@ void RDKMediaPlayer::updateVideoMetadata(const std::string& languages, const std
 {
     m_availableAudioLanguages = languages;
     m_availableSpeeds = speeds;
+    m_duration = duration;
 #ifndef DISABLE_CLOSEDCAPTIONS
     m_availableClosedCaptionsLanguages = m_closedCaptions.getAvailableTracks();
 #endif
@@ -775,4 +887,3 @@ void RDKMediaPlayer::updateClosedCaptionsState()
     }
 #endif
 }
-

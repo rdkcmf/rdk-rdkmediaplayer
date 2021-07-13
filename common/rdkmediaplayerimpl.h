@@ -61,6 +61,7 @@ public:
     virtual void doSetNetworkBufferSize(int32_t networkBufferSize) = 0;
     virtual void doSetVideoBufferLength(float videoBufferLength) = 0;
     virtual void getProgressData(ProgressData* progressData) = 0;
+    virtual bool isManagementSession() const = 0;
     RDKMediaPlayer* getParent()
     {
         return m_parent;
@@ -327,6 +328,14 @@ struct OnBitrateChanged: public Event
         m_object.set("bitrate", bitrate);
         m_object.set("reason", reason);
     }
+};
+
+struct OnCASDataEvent: public Event
+{
+  OnCASDataEvent(const std::string& data) : Event("onCASData")
+  {
+    m_object.set("casData", rtString(data.c_str()));
+  }
 };
 
 #endif

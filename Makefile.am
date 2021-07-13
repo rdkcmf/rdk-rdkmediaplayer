@@ -48,6 +48,26 @@ AM_CXXFLAGS += -DRT_PLATFORM_LINUX
 
 bin_PROGRAMS = rdkmediaplayer
 
+if ENABLE_QAM_TEST
+bin_PROGRAMS += playercli
+
+playercli_SOURCES = \
+       player_test_cli.cpp \
+       common/rdkmediaplayerimpl.h \
+       common/rdkmediaplayerimpl.cpp \
+       common/rtevents.h \
+       common/rtevents.cpp \
+       common/glib_tools.cpp \
+       common/glib_tools.h \
+       common/logger.cpp \
+       common/logger.h \
+       common/timer.cpp \
+       common/timer.h \
+       common/intrect.h
+
+AM_CXXFLAGS += -DENABLE_RDKMEDIAPLAYER_TS_QAM_TEST
+endif
+
 rdkmediaplayer_SOURCES = \
 	main.cpp \
 	rdkmediaplayer.cpp \
@@ -78,6 +98,7 @@ rdkmediaplayer_LDFLAGS = \
 	-lhnsource \
 	-lmediaplayersink \
 	-ldumpfilesink \
+        -lrmfosal \
     -lIARMBus 
 
 if ENABLE_COMCAST_BUILD
@@ -102,6 +123,11 @@ rdkmediaplayer_LDFLAGS += -laamp
 #rdkmediaplayer_LDFLAGS += -lrtRemote_s -lrtCore_s -lpthread -luuid -ldl
 rdkmediaplayer_LDFLAGS += -lrtRemote -lrtCore
 
+if ENABLE_EXTERNAL_CAS
+rdkmediaplayer_LDFLAGS += -lanycas
+AM_CXXFLAGS += -DUSE_EXTERNAL_CAS
+endif
+
 rdkmediaplayer_LDFLAGS += \
 	$(SOC_LIBS) \
 	$(CURL_LIBS) \
@@ -110,9 +136,11 @@ rdkmediaplayer_LDFLAGS += \
 	$(JANSON_LIBS) \
 	$(BCM_SVP_LDFLAGS)
 
+AM_CXXFLAGS += -DENABLE_RDKMEDIAPLAYER_TS_QAM_TEST -DRMF_OSAL_LITTLE_ENDIAN
+
 if ENABLE_DIRECT_QAM
 AM_CXXFLAGS += -DENABLE_DIRECT_QAM
-rdkmediaplayer_LDFLAGS += -lqamsrc
+rdkmediaplayer_LDFLAGS += -lqamsrc -lsocinit
 endif
 
 if ENABLE_IPPV_CLIENT
@@ -133,6 +161,10 @@ endif
 if ENABLE_BREAKPAD
 AM_CXXFLAGS += -DENABLE_BREAKPAD $(breakpad_CFLAGS)
 rdkmediaplayer_LDFLAGS += $(breakpad_LIBS)
+endif
+
+if ENABLE_QAM_TEST
+playercli_LDFLAGS = $(rdkmediaplayer_LDFLAGS)
 endif
 
 ## IPK Generation Support

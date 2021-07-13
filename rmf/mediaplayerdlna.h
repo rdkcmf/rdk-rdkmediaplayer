@@ -24,12 +24,23 @@
 #include "timer.h"
 #include "rmfbase.h"
 
+#define PAT_ACQUIRE 0x1
+#define PMT_ACQUIRE 0x2
+#define CAT_ACQUIRE 0x4
+
+#define PAT_UPDATE 0x08
+#define CAT_UPDATE 0x10
+#define PMT_UPDATE 0x20
+
+#define PSI_READY (PAT_ACQUIRE|PMT_ACQUIRE|CAT_ACQUIRE)
+
 class HNSource;
 class MediaPlayerSink;
 class DumpFileSink;
 class IRMFMediaEvents;
 struct RequestInfo;
 struct ResponseInfo;
+class RMFMediaSourcePrivate;
 
 class MediaPlayerDLNA : public MediaPlayer {
 public:
@@ -60,6 +71,7 @@ public:
   unsigned long rmf_getCCDecoderHandle() const;
   std::string rmf_getAudioLanguages() const;
   void rmf_setAudioLanguage(const std::string& audioLang);
+  void rmf_setAudioMute(bool isMuted);
   void rmf_setEissFilterStatus(bool status);
   void rmf_setVideoZoom(unsigned short zoomVal);
   void rmf_setVideoBufferLength(float bufferLength);
@@ -72,8 +84,26 @@ public:
   std::string rmf_getCaptionDescriptor() const;
   std::string rmf_getEISSDataBuffer() const;
   void rmf_setNetworkBufferSize(int bufferSize);
-  int rmf_getNetworkBufferSize() const { return  m_networkBufferSize; } 
+  int rmf_getNetworkBufferSize() const { return  m_networkBufferSize; }
   void rmf_setVideoRectangle(unsigned x, unsigned y, unsigned w, unsigned h);
+  MediaPlayerSink* rmf_getPlayerSink()  { return m_sink; }
+  IRMFMediaSource* rmf_getSource() { return m_source; }
+  void rmf_setVideoKeySlot(const char* str);
+  void rmf_setAudioKeySlot(const char* str);
+  void rmf_deleteVideoKeySlot();
+  void rmf_deleteAudioKeySlot();
+  int rmf_getVideoPid();
+  int rmf_getAudioPid();
+  uint32_t getPATBuffer(std::vector<uint8_t>& buf);
+  uint32_t getPMTBuffer(std::vector<uint8_t>& buf);
+  uint32_t getCATBuffer(std::vector<uint8_t>& buf);
+  bool getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang);
+  bool getAudioMute() const;
+  void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId);
+  uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData);
+  void releaseFilter(uint32_t filterId);
+  void resumeFilter(uint32_t filterId);
+  void pauseFilter(uint32_t filterId);
 
   MediaPlayer::RMFPlayerState rmf_playerState() const;
   MediaPlayer::RMFVideoBufferState rmf_videoState() const;
@@ -89,13 +119,15 @@ public:
   void notifyPlayerOfMediaWarning();
   void notifyPlayerOfEISSData();
   void notifyPresenceOfVideo();
+  void notifyPMTUpdate();
+  void notifyLanguageChange();
   void onPlay();
   void onPause();
   void onStop();
 
   void ended();
   void notifyError (RMFResult err, const char *pMsg);
-
+  void notifyStatus(const RMFStreamingStatus& status);
   static bool supportsUrl(const std::string& urlStr);
 
  private:
@@ -135,7 +167,7 @@ public:
   void getErrorMapping(RMFResult err, const char *pMsg);
 #endif /* ENABLE_DIRECT_QAM */
 
-
+  void onPMTUpdateAudioMute();
   MediaPlayerClient* m_playerClient;
   HNSource* m_hnsource;
   IRMFMediaSource* m_source;
@@ -200,6 +232,9 @@ public:
 #endif /* ENABLE_DIRECT_QAM */
   bool m_VODKeepPipelinePlaying;
   bool m_eissFilterStatus;
+  uint8_t m_psiStatus;
+  bool m_pmtUpdate;
+  bool m_audioMuteStatus;
 
   unsigned int m_onFirstVideoFrameHandler;
   unsigned int m_onFirstAudioFrameHandler;

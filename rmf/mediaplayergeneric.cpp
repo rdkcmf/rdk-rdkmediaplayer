@@ -430,6 +430,10 @@ void MediaPlayerGeneric::rmf_setAudioLanguage(const std::string &)
 {
   NOT_IMPLEMENTED();
 }
+void MediaPlayerGeneric::rmf_setAudioMute(bool isMuted)
+{
+  NOT_IMPLEMENTED();
+}
 void MediaPlayerGeneric::rmf_setEissFilterStatus(bool status)
 {
   NOT_IMPLEMENTED();
@@ -514,6 +518,40 @@ void MediaPlayerGeneric::rmf_setVideoRectangle(unsigned x, unsigned y, unsigned 
   g_object_set(videoSink, "rectangle", rectStr, nullptr);
   gst_object_unref(videoSink);
   g_free(rectStr);
+}
+
+int MediaPlayerGeneric::rmf_getVideoPid() {
+  NOT_IMPLEMENTED();
+  return -1;
+}
+
+int MediaPlayerGeneric::rmf_getAudioPid() {
+  NOT_IMPLEMENTED();
+  return -1;
+}
+
+void MediaPlayerGeneric::rmf_setVideoKeySlot(const char* str)
+{
+  NOT_IMPLEMENTED();
+  return;
+}
+
+void MediaPlayerGeneric::rmf_setAudioKeySlot(const char* str)
+{
+  NOT_IMPLEMENTED();
+  return;
+}
+
+void MediaPlayerGeneric::rmf_deleteVideoKeySlot()
+{
+  NOT_IMPLEMENTED();
+  return;
+}
+
+void MediaPlayerGeneric::rmf_deleteAudioKeySlot()
+{
+  NOT_IMPLEMENTED();
+  return;
 }
 
 void MediaPlayerGeneric::handleBusMessage(GstBus* bus, GstMessage* msg)

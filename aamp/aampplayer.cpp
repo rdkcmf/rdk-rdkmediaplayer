@@ -36,7 +36,7 @@
 extern "C"
 {
     void setComcastSessionToken(const char* token);
-	void loadAVEJavaScriptBindings(void* context);
+    void loadAVEJavaScriptBindings(void* context);
 }
 
 void* GetPlatformCallbackManager()
@@ -193,17 +193,17 @@ public:
         case AAMP_EVENT_STATE_CHANGED:
             switch(e.data.stateChanged.state)
             {
-	            case eSTATE_IDLE: break;
-	            case eSTATE_INITIALIZING: break;
-	            case eSTATE_INITIALIZED: break;
-	            case eSTATE_PREPARING: break;
-	            case eSTATE_PREPARED: break;
-	            case eSTATE_BUFFERING: break;
-	            case eSTATE_PAUSED: 
+                case eSTATE_IDLE: break;
+                case eSTATE_INITIALIZING: break;
+                case eSTATE_INITIALIZED: break;
+                case eSTATE_PREPARING: break;
+                case eSTATE_PREPARED: break;
+                case eSTATE_BUFFERING: break;
+                case eSTATE_PAUSED: 
                     m_player->getParent()->getEventEmitter().send(OnPausedEvent());
                     break;
-	            case eSTATE_SEEKING: break;
-	            case eSTATE_PLAYING: 
+                case eSTATE_SEEKING: break;
+                case eSTATE_PLAYING: 
                     if(!m_tuned)
                     {
                         LOG_INFO("event playing");
@@ -212,11 +212,11 @@ public:
                     }
                     m_player->getParent()->getEventEmitter().send(OnPlayingEvent());
                     break;
-	            case eSTATE_STOPPING: break;
-	            case eSTATE_STOPPED: break;
-	            case eSTATE_COMPLETE: break;
-	            case eSTATE_ERROR: break;
-	            case eSTATE_RELEASED: break;
+                case eSTATE_STOPPING: break;
+                case eSTATE_STOPPED: break;
+                case eSTATE_COMPLETE: break;
+                case eSTATE_ERROR: break;
+                case eSTATE_RELEASED: break;
             }
             break;
         default:
@@ -284,19 +284,19 @@ void AAMPPlayer::doLoad(const std::string& url)
 {
     try
     {
-	//setSessionToken();
-	if(m_aampListener)
-	{
-        	m_aampListener->reset();
-	}
-	if(m_aampInstance)
-	{
-		m_aampInstance->Tune(url.c_str());
-	}
+        //setSessionToken();
+        if(m_aampListener)
+        {
+            m_aampListener->reset();
+        }
+        if(m_aampInstance)
+        {
+            m_aampInstance->Tune(url.c_str());
+        }
     }
     catch(...)
     {
-	LOG_INFO("Device Illegal argument exception caught in %s\n", __FUNCTION__);  //CID:121723 - Uncaught exception
+        LOG_INFO("Device Illegal argument exception caught in %s\n", __FUNCTION__);  //CID:121723 - Uncaught exception
     }
 }
 
@@ -326,13 +326,13 @@ void AAMPPlayer::doPlay()
 {
     try
     {
-    	LOG_INFO("AAMPPlayer::doPlay()");
-	    if(m_aampInstance)
-		m_aampInstance->SetRate(1);
+        LOG_INFO("AAMPPlayer::doPlay()");
+        if(m_aampInstance)
+        m_aampInstance->SetRate(1);
     }
     catch(...)
     {
-	LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121709 - Uncaught exception
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121709 - Uncaught exception
     }
 }
 
@@ -341,12 +341,12 @@ void AAMPPlayer::doPause()
     try
     {
         LOG_INFO("AAMPPlayer::doPause()");
-    	    if(m_aampInstance)
-		m_aampInstance->SetRate(0);
+        if(m_aampInstance)
+        m_aampInstance->SetRate(0);
     }
     catch(...)
     {
-	LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121724 - Uncaught exception	
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121724 - Uncaught exception
     }
 }
 
@@ -370,25 +370,27 @@ void AAMPPlayer::doSetPosition(float position)
 
 void AAMPPlayer::doSeekToLive()
 {
-	try
-	{
-		LOG_INFO("seekToLive()");
-		if(m_aampInstance)
-			m_aampInstance->SeekToLive();
-	}
-	catch(...)
-	{
-		LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121721 - Uncaught exceptio
-	}
+    try
+    {
+        LOG_INFO("seekToLive()");
+        if(m_aampInstance)
+        {
+            m_aampInstance->SeekToLive();
+        }
+    }
+    catch(...)
+    {
+        LOG_INFO("device IllegalArgumentException  exception caught in %s\n", __FUNCTION__);  //CID:121721 - Uncaught exceptio
+    }
 }
 
 
 void AAMPPlayer::doStop()
 {
     LOG_INFO("stop()");
-	if(m_aampInstance)
+    if(m_aampInstance)
     {
-		m_aampInstance->Stop();    
+        m_aampInstance->Stop();    
         getParent()->getEventEmitter().send(OnClosedEvent());//TODO OnClosedEvent needs to be tied into aamps AAMP_EVENT_STATUS_CHANGED state correctly (e.g. eSTATE_RELEASED once aamp sends it)
     }
 }
@@ -399,7 +401,7 @@ void AAMPPlayer::doChangeSpeed(float speed, int32_t overshootTime)
     {
         LOG_INFO("doChangeSpeed(%f, %d)", speed, overshootTime);
         if(m_aampInstance)
-    	    m_aampInstance->SetRate(speed, overshootTime);
+        m_aampInstance->SetRate(speed, overshootTime);
     }
     catch(...)
     {
@@ -413,7 +415,7 @@ void AAMPPlayer::doSetSpeed(float speed)
     {
         LOG_INFO("doSetSpeed(%f)", speed);
         if(m_aampInstance)
-    	    m_aampInstance->SetRate(speed);
+        m_aampInstance->SetRate(speed);
     }
     catch(...)
     {
@@ -555,79 +557,77 @@ bool AAMPPlayer::setContentType(const std::string &url, std::string& contentStr)
 /*
 void setSessionToken()
 {
-	char *contents = NULL;
-	FILE *fp = fopen("/opt/AAMPPlayer_session_token.txt", "r");
-	if (fp != NULL)
-	{
-		if (fseek(fp, 0L, SEEK_END) == 0)
+    char *contents = NULL;
+    FILE *fp = fopen("/opt/AAMPPlayer_session_token.txt", "r");
+    if (fp != NULL)
+    {
+        if (fseek(fp, 0L, SEEK_END) == 0)
         {
-		    long bufsize = ftell(fp);
-		    if (bufsize == -1){}
-		    contents = new char[bufsize + 1];
-		    if (fseek(fp, 0L, SEEK_SET) != 0)
+            long bufsize = ftell(fp);
+            if (bufsize == -1){}
+            contents = new char[bufsize + 1];
+            if (fseek(fp, 0L, SEEK_SET) != 0)
             {}
-		    size_t newLen = fread(contents, sizeof(char), bufsize, fp);
-		    if ( ferror( fp ) != 0 )
+            size_t newLen = fread(contents, sizeof(char), bufsize, fp);
+            if ( ferror( fp ) != 0 )
             {
-		    }
+            }
             else
             {
-		        contents[newLen-2] = '\0';
-		    }
-		}
-		fclose(fp);
+                contents[newLen-2] = '\0';
+            }
+        }
+    fclose(fp);
 
-		if(contents)
-		{
-			char* token = strstr(contents, "token");
-			if(token)
-			{
-				token += 8;
-				char* tokenString = new char[100000];
+        if(contents)
+        {
+            char* token = strstr(contents, "token");
+            if(token)
+            {
+                token += 8;
+                char* tokenString = new char[100000];
                 int t = time(NULL);
-				srand(t);
+                srand(t);
                 short r = rand() & 0xffff;
-			
-				char temp[100];
-				char msgid[20];
-				sprintf(temp, "%08X%04X", t, r);
-				int i2 = 0;
-				for(int i = 0 ; i < 12; ++i)
-				{
-					if(i==3 || i == 7 || i == 11)
-					{
-						msgid[i2++] = '-';
-					}
-					msgid[i2++] = temp[i];
-				}
-				msgid[15] = 0;
+
+                char temp[100];
+                char msgid[20];
+                sprintf(temp, "%08X%04X", t, r);
+                int i2 = 0;
+                for(int i = 0 ; i < 12; ++i)
+                {
+                    if(i==3 || i == 7 || i == 11)
+                    {
+                        msgid[i2++] = '-';
+                    }
+                    msgid[i2++] = temp[i];
+                }
+                msgid[15] = 0;
 
                 char bytes[20];
                 for (int i=0; i<20; i++)
                     bytes[i] = rand() & 0xff;
-        //        QString nonce = b.toBase64();
-				sprintf(tokenString, 
-				"{\"message:id\":\"15E-6D8-269-5D7\",\"message:type\":\"clientAccess\",\"message:nonce\":\"dmYcSpnudef2U00wYvUxblWsMIk=\",\"client:accessToken\":\"%s\",\"client:mediaUsage\":\"stream\"}", token);
-				LOG_INFO("sending session token");
-				setComcastSessionToken(tokenString);
-				delete tokenString;
-			}
-			else
-			{
-				LOG_INFO("no token /opt/AAMPPlayer_session_token.txt");
-			}
-			delete contents;
-		}
-		else
-		{
-			LOG_INFO("empty /opt/AAMPPlayer_session_token.txt");
-		}
-
-	}
-	else
-	{
-		LOG_INFO("can't open /opt/AAMPPlayer_session_token.txt");
-	}
-
+                // QString nonce = b.toBase64();
+                sprintf(tokenString, 
+                    "{\"message:id\":\"15E-6D8-269-5D7\",\"message:type\":\"clientAccess\",\"message:nonce\":\"dmYcSpnudef2U00wYvUxblWsMIk=\",\"client:accessToken\":\"%s\",\"client:mediaUsage\":\"stream\"}", token);
+                LOG_INFO("sending session token");
+                setComcastSessionToken(tokenString);
+                delete tokenString;
+            }
+            else
+            {
+                LOG_INFO("no token /opt/AAMPPlayer_session_token.txt");
+            }
+            delete contents;
+        }
+        else
+        {
+        LOG_INFO("empty /opt/AAMPPlayer_session_token.txt");
+        }
+    }
+    else
+    {
+        LOG_INFO("can't open /opt/AAMPPlayer_session_token.txt");
+    }
 }
 */
