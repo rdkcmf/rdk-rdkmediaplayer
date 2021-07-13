@@ -88,6 +88,8 @@ public:
     rtMethod2ArgAndNoReturn("on", setListener, rtString, rtFunctionRef);
     rtMethod2ArgAndNoReturn("delListener", delListener, rtString, rtFunctionRef);
     rtMethodNoArgAndNoReturn("destroy", destroy);
+    rtMethod1ArgAndReturn("open", open, rtString, rtString);
+    rtMethod1ArgAndReturn("sendCASData", sendCASData, rtString, rtString);
 
     RDKMediaPlayer();
     virtual ~RDKMediaPlayer();
@@ -690,6 +692,34 @@ public:
     rtError destroy();
 
     /**
+     *  @brief Open the CAS Management Service Session for CMI.
+     *
+     *  This is to create a CAS management service session
+     *  to start receiving data to/from the CAS System.
+     *
+     *  @param[in] param    Json string OpenData to CAS
+     *  @param[out] resp    Response returns back to CAS Management client
+     *
+     *  @return Returns the status of the operation.
+     *  @retval RT_OK on success, appropriate error code otherwise.
+     */
+    rtError open(rtString param, rtString resp);
+
+    /**
+     *  @brief Send the data to CAS System.
+     *
+     *  This is to pass the data to CAS system to process
+     *  the result of this back through EventData asynchronously
+     *
+     *  @param[in] data    Json string XferInfo to CAS
+     *  @param[out] resp    Response returns back to CAS Management client
+     *
+     *  @return Returns the status of the operation.
+     *  @retval RT_OK on success, appropriate error code otherwise.
+     */
+    rtError sendCASData(rtString data, rtString resp);
+
+    /**
      *  @brief  Returns the blocked status.
      *
      *  @return Returns the status of the operation.
@@ -784,7 +814,7 @@ private:
     bool m_autoPlay;
 
     //status info
-    bool m_duration;
+    float m_duration;
     std::string m_availableAudioLanguages;
     std::string m_availableClosedCaptionsLanguages;
     std::string m_availableSpeeds;

@@ -45,6 +45,8 @@ ENABLE_DIRECT_QAM=" "
 ENABLE_IPPV_CLIENT=" "
 ENABLE_VOD_SRC=" "
 ENABLE_RDK_LOGGER=" "
+ENABLE_EXTERNAL_CAS=" "
+ENABLE_QAM_TEST=" "
 ENABLE_BREAKPAD=" "
 BCM_SVP_CFLAGS=" "
 BCM_SVP_LDFLAGS=" "
@@ -135,6 +137,30 @@ AC_ARG_ENABLE([breakpad],
               [echo "breakpad support is disabled"])
 AM_CONDITIONAL([ENABLE_BREAKPAD], [test x$ENABLE_BREAKPAD = xtrue])
 
+AC_ARG_ENABLE([external-cas],
+              AS_HELP_STRING([--enable-external-cas],[enable external cas plugin (default is no)]),
+              [
+          case "${enableval}" in
+           yes) ENABLE_EXTERNAL_CAS=true ;;
+           no)  AC_MSG_ERROR([external cas plugin is disabled]) ;;
+           *) AC_MSG_ERROR([bad value ${enableval} for --enable-external-cas]) ;;
+          esac
+            ],
+            [echo "external cas is disabled"])
+AM_CONDITIONAL([ENABLE_EXTERNAL_CAS],[test x$ENABLE_EXTERNAL_CAS = xtrue])
+
+AC_ARG_ENABLE([qam-test],
+              AS_HELP_STRING([--enable-qam-test],[enable qam-test support (default is no)]),
+              [
+                case "${enableval}" in
+                 yes) ENABLE_QAM_TEST=true ;;
+                  no) AC_MSG_ERROR([qam-test support is disabled]) ;;
+                   *) AC_MSG_ERROR([bad value ${enableval} for --enable-qam-test]) ;;
+                esac
+              ],
+              [echo "qam-test support is disabled"])
+AM_CONDITIONAL([ENABLE_QAM_TEST], [test x$ENABLE_QAM_TEST = xtrue])
+
 AM_CONDITIONAL([USE_PXCORE_SHARED_LIBS], [test x$USE_PXCORE_SHARED_LIBS = xTRUE])
 
 AC_ARG_ENABLE([comcast-build],
@@ -157,6 +183,7 @@ AC_SUBST(ENABLE_DIRECT_QAM)
 AC_SUBST(ENABLE_IPPV_CLIENT)
 AC_SUBST(ENABLE_VOD_SRC)
 AC_SUBST(ENABLE_RDK_LOGGER)
+AC_SUBST(ENABLE_QAM_TEST)
 AC_SUBST(ENABLE_BREAKPAD)
 AC_SUBST(BCM_SVP_CFLAGS)
 AC_SUBST(BCM_SVP_LDFLAGS)

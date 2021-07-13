@@ -206,7 +206,7 @@ bool ClosedCaptions::start(void* pViddecHandle)
 #ifdef USE_CLOSED_CAPTIONING_CHIPSET_I
     else if ((pViddecHandle == NULL) && (m_viddecHandle != NULL))
     {
-	        // special intel use case to stop decoder when viddec goes to zero 
+            // special intel use case to stop decoder when viddec goes to zero 
             int status = media_closeCaptionStop();
             if (status < 0)
             {

@@ -24,12 +24,17 @@
 #include "timer.h"
 #include "rmfbase.h"
 
+#define PAT_UPDATE 0x08
+#define CAT_UPDATE 0x10
+#define PMT_UPDATE 0x20
+
 class HNSource;
 class MediaPlayerSink;
 class DumpFileSink;
 class IRMFMediaEvents;
 struct RequestInfo;
 struct ResponseInfo;
+class RMFMediaSourcePrivate;
 
 class MediaPlayerDLNA : public MediaPlayer {
 public:
@@ -72,8 +77,24 @@ public:
   std::string rmf_getCaptionDescriptor() const;
   std::string rmf_getEISSDataBuffer() const;
   void rmf_setNetworkBufferSize(int bufferSize);
-  int rmf_getNetworkBufferSize() const { return  m_networkBufferSize; } 
+  int rmf_getNetworkBufferSize() const { return  m_networkBufferSize; }
   void rmf_setVideoRectangle(unsigned x, unsigned y, unsigned w, unsigned h);
+  MediaPlayerSink* rmf_getPlayerSink()  { return m_sink; }
+  IRMFMediaSource* rmf_getSource() { return m_source; }
+  void rmf_setVideoKeySlot(const char* str);
+  void rmf_setAudioKeySlot(const char* str);
+  void rmf_deleteVideoKeySlot();
+  void rmf_deleteAudioKeySlot();
+  int rmf_getVideoPid();
+  int rmf_getAudioPid();
+  uint32_t getPATBuffer(std::vector<uint8_t>& buf);
+  uint32_t getPMTBuffer(std::vector<uint8_t>& buf);
+  uint32_t getCATBuffer(std::vector<uint8_t>& buf);
+  void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId);
+  uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData);
+  void releaseFilter(uint32_t filterId);
+  void resumeFilter(uint32_t filterId);
+  void pauseFilter(uint32_t filterId);
 
   MediaPlayer::RMFPlayerState rmf_playerState() const;
   MediaPlayer::RMFVideoBufferState rmf_videoState() const;
@@ -89,13 +110,15 @@ public:
   void notifyPlayerOfMediaWarning();
   void notifyPlayerOfEISSData();
   void notifyPresenceOfVideo();
+  void notifyPMTUpdate();
+  void notifyLanguageChange();
   void onPlay();
   void onPause();
   void onStop();
 
   void ended();
   void notifyError (RMFResult err, const char *pMsg);
-
+  void notifyStatus(const RMFStreamingStatus& status);
   static bool supportsUrl(const std::string& urlStr);
 
  private:
@@ -200,6 +223,8 @@ public:
 #endif /* ENABLE_DIRECT_QAM */
   bool m_VODKeepPipelinePlaying;
   bool m_eissFilterStatus;
+  uint8_t m_psiStatus;
+  bool m_pmtUpdate;
 
   unsigned int m_onFirstVideoFrameHandler;
   unsigned int m_onFirstAudioFrameHandler;

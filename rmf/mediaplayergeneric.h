@@ -69,6 +69,22 @@ public:
   void rmf_setNetworkBufferSize(int bufferSize);
   int rmf_getNetworkBufferSize() const;
   void rmf_setVideoRectangle(unsigned x, unsigned y, unsigned w, unsigned h);
+  MediaPlayerSink* rmf_getPlayerSink() { return nullptr; };
+  IRMFMediaSource* rmf_getSource() { return nullptr; };
+  int rmf_getVideoPid();
+  int rmf_getAudioPid();
+  void rmf_setVideoKeySlot(const char* str);
+  void rmf_setAudioKeySlot(const char* str);
+  void rmf_deleteVideoKeySlot();
+  void rmf_deleteAudioKeySlot();
+  uint32_t getPATBuffer(std::vector<uint8_t>& buf) { return 0; }
+  uint32_t getPMTBuffer(std::vector<uint8_t>& buf) { return 0; }
+  uint32_t getCATBuffer(std::vector<uint8_t>& buf) { return 0; }
+  void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId) { }
+  uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData) { return 0; }
+  void releaseFilter(uint32_t filterId) { }
+  void resumeFilter(uint32_t filterId) { }
+  void pauseFilter(uint32_t filterId) { }
 
 private:
   static void busMessageCallback(GstBus* bus, GstMessage* msg, gpointer data);

@@ -44,6 +44,8 @@
 #include <ippvsrc.h>
 #endif
 #endif
+#include <rmfqamsrcpriv.h>
+#include "rmfprivate.h"
 
 #include "logger.h"
 
@@ -52,6 +54,11 @@
 #define HEADER_NAME_VODADINSERTION_STATUS "vodAdInsertionStatus.cmst.com"
 #define RMF_VOD_BEGIN_PLAYBACK 7
 #define RMF_VOD_BAD_START_POSITION_VAL 0x7FFFFFFFu
+
+#define PAT 0x1
+#define PMT 0x2
+#define CAT 0x4
+#define PSI_READY (PAT|PMT|CAT)
 
 typedef std::vector<std::string> headers_t;
 
@@ -163,6 +170,14 @@ class MediaEvents : public IRMFMediaEvents {
     LOG_ERROR("DLNA player: Error %s (%d)", msg, (int)err);
     m_player->notifyError(err, msg);
   }
+  void status(const RMFStreamingStatus& status) {
+    LOG_ERROR("DLNA player: Status %d", status.m_status);
+    m_player->notifyStatus(status);
+  }
+  void section(const void* data_ptr, unsigned int data_size){
+    LOG_ERROR("DLNA player: Section Data Received");
+    //m_player->notifyStatus(status);
+  }
  private:
   MediaPlayerDLNA* m_player;
 };
@@ -200,6 +215,18 @@ static void mediaPlayerPrivateNotifyMediaWarningCallback(void* player) {
 static void mediaPlayerPrivateVideoNotifyFirstFrameCallback(void* player) {
   ASSERT(player == g_playerInstance);
   static_cast<MediaPlayerDLNA*>(player)->notifyPlayerOfFirstVideoFrame();
+}
+
+static void mediaPlayerPrivateNotifyPmtUpdateCallback(void* player) {
+    LOG_INFO("Got AV Pids");
+    ASSERT(player == g_playerInstance);
+    static_cast<MediaPlayerDLNA*>(player)->notifyPMTUpdate();
+}
+
+static void mediaPlayerLanguageChangeCallback(void* player) {
+    LOG_INFO("Got LanguageChange");
+    ASSERT(player == g_playerInstance);
+    static_cast<MediaPlayerDLNA*>(player)->notifyLanguageChange();
 }
 
 bool MediaPlayerDLNA::isVOD() const {
@@ -274,6 +301,8 @@ MediaPlayerDLNA::MediaPlayerDLNA(MediaPlayerClient* client)
     , m_onFirstVideoFrameHandler(0)
     , m_onFirstAudioFrameHandler(0)
     , m_onEISSDUpdateHandler(0)
+    , m_psiStatus(0)
+    , m_pmtUpdate(false)
     , m_onMediaWarningReceivedHandler(0) {
   LOG_INFO("DLNA video player created");
   g_playerInstance = this;
@@ -353,6 +382,100 @@ void MediaPlayerDLNA::notifyError(RMFResult err, const char *pMsg) {
   setMediaErrorMessage(tmp);
 #endif /* ENABLE_DIRECT_QAM */
   loadingFailed(MediaPlayer::RMF_PLAYER_DECODEERROR);
+}
+
+void MediaPlayerDLNA::notifyStatus(const RMFStreamingStatus& status) {
+  LOG_INFO("notifyStatus - Status %d", status.m_status);
+  bool psiEvent = false;
+  switch (status.m_status)
+  {
+    case RMF_QAMSRC_EVENT_PAT_ACQUIRED:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PAT_ACQUIRED");
+      m_psiStatus |= PAT;
+      psiEvent = true;
+      break;
+    case RMF_QAMSRC_EVENT_PMT_ACQUIRED:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PMT_ACQUIRED");
+      m_psiStatus |= PMT;
+      psiEvent = true;
+      break;
+    case RMF_QAMSRC_EVENT_CAT_ACQUIRED:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_CAT_ACQUIRED");
+      m_psiStatus |= CAT;
+      psiEvent = true;
+      break;
+    case RMF_QAMSRC_EVENT_PAT_UPDATE:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PAT_UPDATE");
+      m_playerClient->psiUpdateReceived(PAT_UPDATE);
+      break;
+    case RMF_QAMSRC_EVENT_CAT_UPDATE:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_CAT_UPDATE");
+      m_playerClient->psiUpdateReceived(CAT_UPDATE);
+      break;
+    case RMF_QAMSRC_EVENT_PMT_UPDATE:
+      LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PMT_UPDATE");
+      m_playerClient->psiUpdateReceived(PMT_UPDATE);
+      m_pmtUpdate = true;
+      break;
+  }
+  if(status.m_status == RMF_QAMSRC_EVENT_SECTION_ACQUIRED) {
+    LOG_INFO("Section Data is avialable to read");
+    m_playerClient->sectionDataReceived();
+  }
+  else if(psiEvent && (m_psiStatus == PSI_READY)){
+    LOG_INFO("PSI Data (PAT, PMT and CAT) is ready");
+    //m_playerClient->psiReady();
+  }
+}
+
+uint32_t MediaPlayerDLNA::getPATBuffer(std::vector<uint8_t>& buf) {
+    uint32_t length = 0;
+    //m_source->getPrivateSourceImpl()->getPATBuffer(buf, length);
+    ((RMFQAMSrcImpl *)(m_source->getPrivateSourceImpl()))->getPATBuffer(buf, &length);
+    return length;
+}
+
+uint32_t MediaPlayerDLNA::getPMTBuffer(std::vector<uint8_t>& buf) {
+    uint32_t length = 0;
+    m_source->getPrivateSourceImpl()->getPMTBuffer(buf, &length);
+    return length;
+}
+
+uint32_t MediaPlayerDLNA::getCATBuffer(std::vector<uint8_t>& buf) {
+    uint32_t length = 0;
+    m_source->getPrivateSourceImpl()->getCATBuffer(buf, &length);
+    return length;
+}
+
+uint32_t MediaPlayerDLNA::getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData)
+{
+    uint32_t length = 0;
+    m_source->getPrivateSourceImpl()->getSectionData(filterId, sectionData, &length);
+    return length;
+}
+
+void MediaPlayerDLNA::setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId)
+{
+    LOG_INFO("MediaPlayerDLNA::setFilter");
+    m_source->getPrivateSourceImpl()->setFilter(pid, filterParam, pFilterId);
+}
+
+void MediaPlayerDLNA::releaseFilter(uint32_t filterId)
+{
+    LOG_INFO("MediaPlayerDLNA::releaseFilter");
+    m_source->getPrivateSourceImpl()->releaseFilter(filterId);
+}
+
+void MediaPlayerDLNA::resumeFilter(uint32_t filterId)
+{
+    LOG_INFO("MediaPlayerDLNA::resumeFilter");
+    m_source->getPrivateSourceImpl()->resumeFilter(filterId);
+}
+
+void MediaPlayerDLNA::pauseFilter(uint32_t filterId)
+{
+    LOG_INFO("MediaPlayerDLNA::pauseFilter");
+    m_source->getPrivateSourceImpl()->pauseFilter(filterId);
 }
 
 #ifdef ENABLE_DIRECT_QAM
@@ -835,6 +958,16 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
       m_source = new RMFQAMSrc();
     }
   }
+  else if (m_url.find("tune://") != std::string::npos) {
+    strcpy(url, m_url.c_str());
+    m_hnsource = NULL;
+    if (true == RMFQAMSrc::useFactoryMethods()) {
+      m_source = RMFQAMSrc::getQAMSourceInstance(m_url.c_str());
+    } else {
+      m_source = new RMFQAMSrc();
+    }
+    RMFQAMSrc::init_platform();
+  }
 #ifdef IPPV_CLIENT_ENABLED
   else if (m_url.find("ippv://") != std::string::npos) {
     safec_rc = strcpy_s(url, sizeof(url), m_url.c_str());
@@ -929,7 +1062,7 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
     m_isVODAsset = true;
   }
 #ifdef ENABLE_DIRECT_QAM
-  else if (m_url.find("ocap://") != std::string::npos) {
+  else if ((m_url.find("tune://") != std::string::npos) || (m_url.find("ocap://") != std::string::npos)) {
     m_isLiveAsset = true;
   }
   else if (m_url.find("ippv://") != std::string::npos) {
@@ -1007,11 +1140,11 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
         ipaddr[ip_end_pos - ip_start_pos] = 0;
       }
     }
-	safec_rc = sprintf_s(location, sizeof(location), "/opt/SNK_IN_%s.ts", ipaddr);
-	if(safec_rc < EOK) {
+    safec_rc = sprintf_s(location, sizeof(location), "/opt/SNK_IN_%s.ts", ipaddr);
+    if(safec_rc < EOK) {
        ERR_CHK(safec_rc);
        return false;
-	}
+    }
     if (m_dfsink->init() != RMF_RESULT_SUCCESS) {
       LOG_ERROR("Failed to initialize fd sink");
       return false;
@@ -1027,6 +1160,8 @@ bool MediaPlayerDLNA::rmf_load(const std::string& httpUrl) {
   m_sink->setVideoPlayingCallback(mediaPlayerPrivateVideoNotifyFirstFrameCallback, this);
   m_sink->setAudioPlayingCallback(mediaPlayerPrivateAudioNotifyFirstFrameCallback, this);
   m_sink->setMediaWarningCallback(mediaPlayerPrivateNotifyMediaWarningCallback, this);
+  m_sink->setPmtUpdateCallback(mediaPlayerPrivateNotifyPmtUpdateCallback, this);
+  m_sink->setLanguageChangeCallback(mediaPlayerLanguageChangeCallback, this);
 
 #ifdef USE_VODSRC
   if (m_isVODAsset) {
@@ -1479,6 +1614,46 @@ void MediaPlayerDLNA::rmf_setNetworkBufferSize(int bufferSize) {
   return;
 }
 
+int MediaPlayerDLNA::rmf_getVideoPid() {
+  int video_pid = -1;
+  if (m_sink)
+    video_pid = m_sink->getVideoPid();
+
+  return video_pid;
+}
+
+int MediaPlayerDLNA::rmf_getAudioPid() {
+  int audio_pid = -1;
+  if (m_sink)
+    audio_pid = m_sink->getAudioPid();
+
+  return audio_pid;
+}
+
+void MediaPlayerDLNA::rmf_setVideoKeySlot(const char* str) {
+  if (m_sink) {
+    m_sink->setVideoKeySlot(str);
+  }
+}
+
+void MediaPlayerDLNA::rmf_setAudioKeySlot(const char* str) {
+  if (m_sink) {
+    m_sink->setAudioKeySlot(str);
+  }
+}
+
+void MediaPlayerDLNA::rmf_deleteVideoKeySlot() {
+  if (m_sink) {
+    m_sink->deleteVideoKeySlot();
+  }
+}
+
+void MediaPlayerDLNA::rmf_deleteAudioKeySlot() {
+  if (m_sink) {
+    m_sink->deleteAudioKeySlot();
+  }
+}
+
 void MediaPlayerDLNA::rmf_seek(float time)
 {
     LOG_INFO("SEEK(%.2f)", time);
@@ -1664,6 +1839,25 @@ void MediaPlayerDLNA::notifyPlayerOfFirstVideoFrame() {
     self.onFirstVideoFrame();
     return G_SOURCE_REMOVE;
   }, this);
+}
+
+void MediaPlayerDLNA::notifyPMTUpdate() {
+    if(m_pmtUpdate)
+    {
+        LOG_INFO("MediaPlayerDLNA::notifyPMTUpdate - Send pmtUpdate");
+        m_playerClient->pmtUpdate();
+        m_pmtUpdate = false;
+    }
+    else
+    {
+        LOG_INFO("MediaPlayerDLNA::notifyPMTUpdate - Send PSIReady");
+        m_playerClient->psiReady();
+    }
+}
+
+void MediaPlayerDLNA::notifyLanguageChange() {
+    LOG_INFO("MediaPlayerDLNA::notifyLanguageChange - Send languageChange");
+    m_playerClient->languageChange();
 }
 
 void MediaPlayerDLNA::onFirstVideoFrame() {
@@ -2162,10 +2356,10 @@ bool MediaPlayerDLNA::supportsUrl(const std::string& urlStr)
         has_substring(urlStr, "/hnStreamStart") ||
         has_substring(urlStr, "/vldms/") ||
         has_substring(urlStr, "ocap://") ||
+        has_substring(urlStr, "tune://") ||
         has_substring(urlStr, "vod://") ||
         has_substring(urlStr, "ippv://") ||
         has_substring(urlStr, "profile=MPEG_TS") ||
         has_substring(urlStr, ".ts") ||
         has_substring(urlStr, ".m2ts");
 }
-

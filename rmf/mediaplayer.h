@@ -20,6 +20,11 @@
 #define _MEDIA_PLAYER_H_
 
 #include <string>
+#include <vector>
+#include "rmfqamsrcpriv.h"
+
+class MediaPlayerSink;
+class IRMFMediaSource;
 
 class MediaPlayerClient {
  public:
@@ -35,6 +40,11 @@ class MediaPlayerClient {
   virtual void rateChanged() = 0;
   virtual void videoDecoderHandleReceived() = 0;
   virtual void eissDataReceived() = 0;
+  virtual void psiReady() = 0;
+  virtual void sectionDataReceived() = 0;
+  virtual void languageChange() = 0;
+  virtual void psiUpdateReceived(uint8_t psiStatus) = 0;
+  virtual void pmtUpdate() = 0;
 };
 
 class MediaPlayer {
@@ -97,6 +107,22 @@ class MediaPlayer {
   virtual void rmf_setNetworkBufferSize(int bufferSize) = 0;
   virtual int rmf_getNetworkBufferSize() const = 0;
   virtual void rmf_setVideoRectangle(unsigned x, unsigned y, unsigned w, unsigned h) = 0;
+  virtual MediaPlayerSink* rmf_getPlayerSink() = 0;
+  virtual IRMFMediaSource* rmf_getSource() = 0;
+  virtual void rmf_setVideoKeySlot(const char* str) = 0;
+  virtual void rmf_setAudioKeySlot(const char* str) = 0;
+  virtual void rmf_deleteVideoKeySlot() = 0;
+  virtual void rmf_deleteAudioKeySlot() = 0;
+  virtual int rmf_getVideoPid() = 0;
+  virtual int rmf_getAudioPid() = 0;
+  virtual uint32_t getPATBuffer(std::vector<uint8_t>& buf) = 0;
+  virtual uint32_t getPMTBuffer(std::vector<uint8_t>& buf) = 0;
+  virtual uint32_t getCATBuffer(std::vector<uint8_t>& buf) = 0;
+  virtual void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId) = 0;
+  virtual uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData) = 0;
+  virtual void releaseFilter(uint32_t filterId) = 0;
+  virtual void resumeFilter(uint32_t filterId) = 0;
+  virtual void pauseFilter(uint32_t filterId) = 0;
 };
 
 #define CASE(x) case x: return #x

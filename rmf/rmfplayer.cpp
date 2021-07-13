@@ -25,9 +25,13 @@
 #include "logger.h"
 #include "mediaplayerdlna.h"
 #include "mediaplayergeneric.h"
+#ifdef USE_EXTERNAL_CAS
+#include <jansson.h>
+#endif
 
 #define TO_MS(x) (uint32_t)( (x) / 1000)
 #define TUNE_LOG_MAX_SIZE 100
+#define HEADER_SIZE 3
 
 namespace
 {
@@ -35,13 +39,244 @@ namespace
     const guint kRefreshCachedTimeThrottleMs = 100;
 }
 
+#ifdef USE_EXTERNAL_CAS
+bool CASService::initialize(bool management, const std::string& casOcdmId, PSIInfo *psiInfo)
+{
+    LOG_INFO("CASService initialize");
+    casOcdmId_ = casOcdmId;
+    casManager_ = CASManager::createInstance(casSFInterface_, casPipelineInterface_);
+
+    if(!casManager_)
+    {
+        LOG_INFO("Failed to create casManager");
+        return false;
+    }
+
+    bManagementSession_ = management;
+    if(env_.getUsageManagement() == CAS_USAGE_MANAGEMENT_FULL) {
+        bManagementSession_ = true;
+    }
+    else {
+        bManagementSession_ = management;
+    }
+    LOG_INFO("Management = %d", bManagementSession_);
+
+    if(bManagementSession_ && (psiInfo == NULL)) {
+        casHelper_ = casManager_->createHelper(casOcdmId, env_);
+    }
+    else {
+        casHelper_ = casManager_->createHelper(psiInfo->pat, psiInfo->pmt, psiInfo->cat, env_);
+    }
+    if(!casHelper_)
+    {
+        LOG_INFO("Failed to create Helper");
+        return false;
+    }
+    return true;
+}
+
+bool CASService::startStopDecrypt(const std::vector<uint16_t>& startPids, const std::vector<uint16_t>& stopPids)
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    if(!casHelper_)
+    {
+        LOG_INFO("casHelper_ Not available");
+        return false;
+    }
+
+    casHelper_->registerStatusInformant(this);
+
+    CASHelper::CASStartStatus status = casHelper_->startStopDecrypt(startPids, stopPids);
+    bool ret = false;
+    switch(status)
+    {
+        case CASHelper::CASStartStatus::OK:
+            LOG_INFO("Everything was created and CAS Started, there is no need to wait for status");
+            ret = true;
+            break;
+        case CASHelper::CASStartStatus::WAIT:
+            LOG_INFO("verything was created but the CAS has not started yet...");
+            break;
+        case CASHelper::CASStartStatus::ERROR:
+            LOG_INFO("CAS Start is Failed...");
+            break;
+        default:
+            LOG_INFO("Invalid CAS start status");
+            break;
+    }
+    return ret;
+}
+
+void CASService::updatePSI(const std::vector<uint8_t>& pat, const std::vector<uint8_t>& pmt, const std::vector<uint8_t>& cat)
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+        if(casHelper_)
+        {
+            casHelper_->updatePSI(pat, pmt, cat);
+        }
+        else
+        {
+            LOG_ERROR("[%s:%d] Failed to send CASService updatePSI \n", __FUNCTION__, __LINE__);
+        }
+}
+
+void CASService::informStatus(const CASStatus& status) {
+    LOG_INFO("[%s:%d] Inform Status back to Source = %d\n", __FUNCTION__, __LINE__, status);
+}
+
+void CASService::casPublicData(const std::vector<uint8_t>& data)
+{
+    LOG_INFO("casPublicData - Received");
+    std::string casData;
+    casData.assign(data.begin(), data.end());
+    LOG_INFO("casPublicData - %s\n", casData.c_str());
+    emit_.send(OnCASDataEvent(casData));
+}
+
+void CASService::processSectionData(const uint32_t& filterId, const std::vector<uint8_t>& data)
+{
+    LOG_INFO("processSectionData - CAS Service");
+    if(casManager_)
+    {
+        casManager_->processData(filterId, data);
+    }
+    else
+    {
+    LOG_ERROR("processSectionData - CASManager NULL");
+    }
+}
+
+bool CASService::isManagementSession() const
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    return bManagementSession_;
+}
+
+ICasFilterStatus RMFPlayer::create(uint16_t pid, ICasFilterParam &param, ICasHandle **pHandle) {
+    LOG_INFO("create - CAS Upstream to Create Filter");
+    uint32_t filterId = 0;
+
+    ICasFilterParam *filterParam = (ICasFilterParam *)malloc(sizeof(ICasFilterParam));
+    filterParam->pos_size = param.pos_size;
+    filterParam->neg_size = param.neg_size;
+    for (int i = 0; i < FILTER_SIZE; i++)
+    {
+        filterParam->pos_mask[i] = param.pos_mask[i];
+        filterParam->pos_value[i] = param.pos_value[i];
+        filterParam->neg_mask[i] = param.neg_mask[i];
+        filterParam->neg_value[i] = param.neg_value[i];
+    }
+    filterParam->disableCRC = param.disableCRC;
+    filterParam->noPaddingBytes = param.noPaddingBytes;
+    filterParam->mode = param.mode;
+    LOG_INFO("create : param - pos_size = %d, neg_size = %d\n", param.pos_size, param.neg_size);
+    m_mediaPlayer->setFilter(pid, (char *)filterParam, &filterId);
+    (*pHandle)->filterId = filterId;
+    if(filterParam)
+    {
+        free(filterParam);
+        filterParam = NULL;
+    }
+    return ICasFilterStatus_NoError;
+}
+
+ICasFilterStatus RMFPlayer::setState(bool isRunning, ICasHandle* handle) {
+    LOG_INFO("setState - CAS Upstream to Create Filter");
+    uint32_t filterId = handle->filterId;
+    //pause filter
+    //stop cancel
+    if(!isRunning)
+    {
+       m_mediaPlayer->pauseFilter(filterId);
+    }
+
+    return ICasFilterStatus_NoError;
+}
+
+ICasFilterStatus RMFPlayer::start(ICasHandle* handle) {
+    LOG_INFO("start - CAS Upstream to Create Filter");
+    uint32_t filterId = handle->filterId;
+    //resume filter
+    m_mediaPlayer->resumeFilter(filterId);
+    return ICasFilterStatus_NoError;
+}
+
+ICasFilterStatus RMFPlayer::destroy(ICasHandle* handle) {
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    LOG_INFO("destroy - CAS Upstream to Create Filter");
+    uint32_t filterId = handle->filterId;
+    m_mediaPlayer->releaseFilter(filterId);
+    return ICasFilterStatus_NoError;
+}
+
+uint32_t RMFPlayer::setKeySlot(uint16_t pid, std::vector<uint8_t> data){
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    uint32_t ret = RMF_RESULT_SUCCESS;
+    //For External CAS, the data sent is having a pointer address
+    //This needs to be made it is more generic for different platform and CAS
+    //E.g.: [232, 180, 153, 192], keyslot handle should be 0xE8B499C0
+    char* keyHandle = (char*)((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]);
+    RDK_LOG(RDK_LOG_INFO, "LOG.RDK.ANYCAS", "[%s:%d] keyHandle = 0x%x\n", __FUNCTION__, __LINE__, keyHandle);
+    if(pid == m_mediaPlayer->rmf_getVideoPid())
+    {
+        LOG_INFO("setKeySlot - Setting Video Key Slot, pid = %d", pid);
+        m_mediaPlayer->rmf_setVideoKeySlot(keyHandle);
+    }
+    else if (pid == m_mediaPlayer->rmf_getAudioPid())
+    {
+        LOG_INFO("setKeySlot - Setting Audio Key Slot, pid = %d", pid);
+        m_mediaPlayer->rmf_setAudioKeySlot(keyHandle);
+    }
+    else
+    {
+        LOG_INFO("setKeySlot - Invalid Pid - Not either Audio/Video Pid currently playing");
+        ret = RMF_RESULT_FAILURE;
+    }
+    return ret;
+}
+
+uint32_t RMFPlayer::deleteKeySlot(uint16_t pid){
+    uint32_t ret = RMF_RESULT_SUCCESS;
+    RDK_LOG(RDK_LOG_INFO, "LOG.RDK.ANYCAS", "[%s:%d] pid = 0x%x\n", __FUNCTION__, __LINE__, pid);
+
+    if(pid == m_mediaPlayer->rmf_getVideoPid())
+    {
+        LOG_INFO("deleteKeySlot - deleting Video Key Slot, pid = %d", pid);
+	m_mediaPlayer->rmf_deleteVideoKeySlot();
+    }
+    else if (pid == m_mediaPlayer->rmf_getAudioPid())
+    {
+        LOG_INFO("deleteKeySlot - deleting Audio Key Slot, pid = %d", pid);
+        m_mediaPlayer->rmf_deleteAudioKeySlot();
+    }
+    else
+    {
+        LOG_INFO("deleteKeySlot - Invalid Pid - Not either Audio/Video Pid currently playing");
+        ret = RMF_RESULT_FAILURE;
+    }
+    return ret;
+}
+
+uint32_t RMFPlayer::getPATBuffer(std::vector<uint8_t>& patBuf) {
+    return m_mediaPlayer->getPATBuffer(patBuf);
+}
+
+uint32_t RMFPlayer::getPMTBuffer(std::vector<uint8_t>& pmtBuf) {
+    return m_mediaPlayer->getPMTBuffer(pmtBuf);
+}
+
+uint32_t RMFPlayer::getCATBuffer(std::vector<uint8_t>& catBuf) {
+    return m_mediaPlayer->getCATBuffer(catBuf);
+}
+#endif
+
 bool RMFPlayer::canPlayURL(const std::string& url)
 {
     std::string contentType;
     return RMFPlayer::setContentType(url, contentType);
 }
 
-RMFPlayer::RMFPlayer(RDKMediaPlayer* parent) : 
+RMFPlayer::RMFPlayer(RDKMediaPlayer* parent) :
     RDKMediaPlayerImpl(parent),
     m_mediaPlayer(new MediaPlayerDLNA(this)),
     m_isLoaded(false),
@@ -54,8 +289,13 @@ RMFPlayer::RMFPlayer(RDKMediaPlayer* parent) :
     m_playerState(MediaPlayer::RMF_PLAYER_EMPTY),
     m_videoState(MediaPlayer::RMF_VIDEO_BUFFER_HAVENOTHING),
     m_videoStateMaximum(MediaPlayer::RMF_VIDEO_BUFFER_HAVENOTHING),
-    m_playbackProgressMonitorTag(0),
-    m_lastRefreshTime(0)
+#ifdef USE_EXTERNAL_CAS
+    m_lastRefreshTime(0),
+    m_casService(NULL),
+    m_lastAudioPid(-1),
+    m_lastVideoPid(-1),
+#endif
+    m_playbackProgressMonitorTag(0)
 {
 }
 
@@ -75,6 +315,7 @@ void RMFPlayer::doInit()
 
 void RMFPlayer::doLoad(const std::string& url)
 {
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
     m_playerState = MediaPlayer::RMF_PLAYER_LOADING;
     m_videoState = MediaPlayer::RMF_VIDEO_BUFFER_HAVENOTHING;
     m_videoStateMaximum = MediaPlayer::RMF_VIDEO_BUFFER_HAVENOTHING;
@@ -82,6 +323,10 @@ void RMFPlayer::doLoad(const std::string& url)
     m_lastReportedDuration = 0.f;
     m_lastReportedPlaybackRate = 0.f;
     m_isPaused = true;
+#ifdef USE_EXTERNAL_CAS
+    m_lastAudioPid = -1;
+    m_lastVideoPid = -1;
+#endif
     m_setURLTime = getParent()->getSetURLTime();
     m_loadStartTime = getParent()->getLoadStartTime();
 
@@ -100,6 +345,146 @@ void RMFPlayer::doLoad(const std::string& url)
 
     m_loadCompleteTime = g_get_monotonic_time();
 }
+
+bool RMFPlayer::isManagementSession() const
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+#ifdef USE_EXTERNAL_CAS
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService)
+    {
+        return m_casService->isManagementSession();
+    }
+    else
+    {
+        return false;
+    }
+#else
+    return false;
+#endif
+}
+
+#ifdef USE_EXTERNAL_CAS
+void RMFPlayer::open(const std::string& openData)
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+
+    json_error_t error;
+    json_t *root = json_loads(openData.c_str(), 0, &error);
+    if (!root) {
+        LOG_INFO("json error on line %d: %s\n", error.line, error.text);
+        return;
+    }
+
+    std::string mediaUrl = json_string_value(json_object_get(root, "mediaurl"));
+    std::string mode = json_string_value(json_object_get(root, "mode"));
+    std::string manage = json_string_value(json_object_get(root, "manage"));
+    std::string initData = json_string_value(json_object_get(root, "casinitdata"));
+    std::string casOcdmId = json_string_value(json_object_get(root, "casocdmid"));
+
+    CASUsageMode mode_val;
+    CASUsageManagement manage_val;
+    if(mode == "MODE_NONE") { mode_val = CAS_USAGE_NULL; }
+    else if(mode == "MODE_LIVE") { mode_val = CAS_USAGE_LIVE; }
+    else if(mode == "MODE_RECORD") { mode_val = CAS_USAGE_RECORDING; }
+    else if(mode == "MODE_PLAYBACK") { mode_val = CAS_USAGE_PLAYBACK; }
+
+    if(manage == "MANAGE_NONE") { manage_val = CAS_USAGE_MANAGEMENT_NONE; }
+    else if(manage == "MANAGE_FULL") { manage_val = CAS_USAGE_MANAGEMENT_FULL; }
+    else if(manage == "MANAGE_NO_PSI") { manage_val = CAS_USAGE_MANAGEMENT_NO_PSI; }
+    else if(manage == "MANAGE_NO_TUNER") { manage_val = CAS_USAGE_MANAGEMENT_NO_TUNE; }
+
+    CASEnvironment env{ mediaUrl, mode_val, manage_val, initData};
+
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    m_casService = new CASService(getParent()->getEventEmitter(), env, this, this);
+    if(m_casService) {
+        LOG_INFO("Successfully created m_casService");
+    }
+    else {
+        LOG_INFO("Failed to create m_casService");
+    }
+
+    if(casOcdmId.empty())
+    {
+        LOG_INFO("Missing casocdmid which is mandatory to create management session.");
+    }
+    else if(manage == "MANAGE_NO_PSI" || manage == "MANAGE_NO_TUNER")
+    {
+        if(m_casService && m_casService->initialize(true, casOcdmId, NULL) == false)
+        {
+            delete m_casService;
+            m_casService = NULL;
+            LOG_INFO("Failed to create Management Session");
+        }
+    }
+    else
+    {
+        LOG_INFO("Invalid Manage option: %s", manage.c_str());
+    }
+
+    json_decref(root);
+}
+
+void RMFPlayer::registerCASData()
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService) {
+        std::shared_ptr<CASHelper> casHelper = m_casService->getCasHelper();
+        if(casHelper){
+            casHelper->registerDataListener(m_casService);
+        }
+    }
+    else{
+        LOG_INFO("No Management Session - Invalid Operation");
+    }
+}
+
+void RMFPlayer::sendCASData(const std::string& data)
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService)
+    {
+        json_error_t error;
+        json_t *root = json_loads(data.c_str(), 0, &error);
+
+        if (root) {
+            std::string strPayload = json_string_value(json_object_get(root, "payload"));
+
+            std::vector<uint8_t> payload;
+            payload.assign(strPayload.begin(), strPayload.end());
+
+            std::shared_ptr<CASHelper> casHelper = m_casService->getCasHelper();
+            if(casHelper){
+                casHelper->sendData(payload);
+            }
+            json_decref(root);
+        }
+        else{
+            LOG_INFO("json error on line %d: %s\n", error.line, error.text);
+        }
+    }
+    else{
+        LOG_INFO("No Management Session - Invalid Operation");
+    }
+}
+
+void RMFPlayer::destroy(const std::string& casOcdmId)
+{
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService)
+    {
+        delete m_casService;
+        m_casService = NULL;
+    }
+    else{
+        LOG_INFO("No Management Session - Invalid Operation");
+    }
+}
+#endif
 
 void RMFPlayer::doSetVideoRectangle(const IntRect& rect)
 {
@@ -181,11 +566,35 @@ void RMFPlayer::doSeekToLive()
 
 void RMFPlayer::doStop()
 {
+    LOG_INFO("[%s:%d] Enter\n", __FUNCTION__, __LINE__);
     LOG_INFO("stop()");
     m_isLoaded = false;
     stopPlaybackProgressMonitor();
+#ifdef USE_EXTERNAL_CAS
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService)
+    {
+        std::shared_ptr<CASHelper> casHelper = m_casService->getCasHelper();
+        if(casHelper){
+            casHelper->setState(CASHelper::CASHelperState::PAUSED);
+        }
+    }
+    if(m_casService)
+    {
+        delete m_casService;
+        m_casService = NULL;
+    }
+#endif
+
     m_mediaPlayer->rmf_stop();
     getParent()->getEventEmitter().send(OnClosedEvent());
+#ifdef USE_EXTERNAL_CAS
+    if(m_casService)
+    {
+        delete m_casService;
+        m_casService = NULL;
+    }
+#endif
 }
 
 void RMFPlayer::doChangeSpeed(float speed, int32_t overshootTime)
@@ -426,6 +835,246 @@ void RMFPlayer::videoDecoderHandleReceived()
 {
     getParent()->onVidHandleReceived(m_mediaPlayer->rmf_getCCDecoderHandle());
 }
+
+void RMFPlayer::psiReady()
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    PSIInfo psiInfo;
+
+    if( getPATBuffer(psiInfo.pat) == 0 ||
+        getPMTBuffer(psiInfo.pmt) == 0 )
+    {
+        LOG_INFO("Failed to get PSI buffers (PAT or PMT or CAT)");
+        return;
+    }
+
+    if( getCATBuffer(psiInfo.cat) == 0 )
+    {
+        LOG_INFO("Failed to get CAT buffer");
+    }
+
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(!m_casService || m_casService->initialize(false, "", &psiInfo) == false)
+    {
+        if(m_casService)
+            delete m_casService;
+        m_casService = NULL;
+        LOG_INFO("Failed to create Tuning Session for CAS");
+        return;
+    }
+
+    if(m_casService->isManagementSession())
+    {
+        LOG_INFO("Managemnet Session - No stopStartDecrypt");
+        return;
+    }
+
+    int videoPid = -1, audioPid = -1;
+    if(((videoPid = m_mediaPlayer->rmf_getVideoPid()) != -1) &&
+       ((audioPid = m_mediaPlayer->rmf_getAudioPid()) != -1))
+    {
+        LOG_INFO("VideoPid = %d, AudioPid = %d", videoPid, audioPid);
+        m_lastAudioPid = audioPid;
+        m_lastVideoPid = videoPid;
+        std::vector<uint16_t> startPids;
+        std::vector<uint16_t> stopPids;
+        startPids.push_back(videoPid);
+        startPids.push_back(audioPid);
+
+        m_casService->startStopDecrypt(startPids, stopPids);
+    }
+    else{
+        LOG_INFO("Failed to get the AV Pids. VideoPid = %d, AudioPid = %d", videoPid, audioPid);
+    }
+#endif
+}
+
+void RMFPlayer::languageChange()
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("Enter languageChange");
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(m_casService)
+    {
+        int audioPid = -1;
+        if((m_lastAudioPid != -1) && (audioPid = m_mediaPlayer->rmf_getAudioPid()) != -1)
+        {
+            if(m_lastAudioPid != audioPid)
+            {
+                 LOG_INFO("m_lastAudioPid = %d, AudioPid = %d", m_lastAudioPid, audioPid);
+                std::vector<uint16_t> startPids;
+                std::vector<uint16_t> stopPids;
+                startPids.push_back(audioPid);
+                stopPids.push_back(m_lastAudioPid);
+                m_casService->startStopDecrypt(startPids, stopPids);
+                m_lastAudioPid = audioPid;
+            }
+            else
+            {
+                LOG_INFO("No Change in Audio Pids m_lastAudioPid = %d, AudioPid = %d", m_lastAudioPid, audioPid);
+            }
+        }
+        else
+        {
+            LOG_INFO("Failed to get the Audio Pids. m_lastAudioPid = %d, AudioPid = %d", m_lastAudioPid, audioPid);
+        }
+    }
+    else
+    {
+        LOG_INFO("CAS Service not available");
+    }
+#endif
+}
+
+void RMFPlayer::psiUpdateReceived(uint8_t psiStatus)
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("Enter psiUpdateReceived\n");
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(!m_casService)
+    {
+        LOG_INFO("m_casService not available");
+        return;
+    }
+    PSIInfo psiInfo;
+    bool hasBuffer = false;
+
+    if((psiStatus & PAT_UPDATE) != 0)
+    {
+        if( getPATBuffer(psiInfo.pat) != 0)
+        {
+            LOG_INFO("get PSI buffers (PAT) Success");
+            hasBuffer = true;
+        }
+    }
+    else if((psiStatus & CAT_UPDATE) != 0)
+    {
+        if( getCATBuffer(psiInfo.cat) != 0)
+        {
+            LOG_INFO("get PSI buffers (CAT) Success");
+            hasBuffer = true;
+        }
+    }
+    else if((psiStatus & PMT_UPDATE) != 0)
+    {
+        if( getPMTBuffer(psiInfo.pmt) != 0)
+        {
+            LOG_INFO("get PSI buffers (PMT) Success");
+            hasBuffer = true;
+        }
+    }
+
+    if(hasBuffer)
+    {
+        m_casService->updatePSI(psiInfo.pat,psiInfo.pmt,psiInfo.cat);
+    }
+#endif
+}
+
+void RMFPlayer::pmtUpdate()
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("Enter pmtUpdate\n");
+    std::lock_guard<std::mutex> guard(cas_mutex);
+    if(!m_casService)
+    {
+        LOG_INFO("m_casService not available");
+        return;
+    }
+
+    int videoPid = -1, audioPid = -1;
+
+    if(((videoPid = m_mediaPlayer->rmf_getVideoPid()) != -1) &&
+       ((audioPid = m_mediaPlayer->rmf_getAudioPid()) != -1))
+    {
+        LOG_INFO("VideoPid = %d, AudioPid = %d", videoPid, audioPid);
+        std::vector<uint16_t> startPids;
+        std::vector<uint16_t> stopPids;
+
+        if(videoPid != m_lastVideoPid)
+        {
+            startPids.push_back(videoPid);
+            stopPids.push_back(m_lastVideoPid);
+        }
+        if(audioPid != m_lastAudioPid)
+        {
+            startPids.push_back(audioPid);
+            stopPids.push_back(m_lastAudioPid);
+        }
+        m_lastVideoPid = videoPid;
+        m_lastAudioPid = audioPid;
+
+        if ((startPids.size() != 0) || (stopPids.size() != 0))
+        {
+            m_casService->startStopDecrypt(startPids, stopPids);
+        }
+        else
+        {
+            LOG_INFO("No change in PIDs, not call startStopDecrypt");
+        }
+    }
+    else
+    {
+        LOG_ERROR("Failed to get the AV Pids. VideoPid = %d, AudioPid = %d", videoPid, audioPid);
+    }
+#endif
+}
+int RMFPlayer::get_section_length(vector<uint8_t>sectionDataBuffer)
+{
+#ifdef USE_EXTERNAL_CAS
+    int nSect = (((sectionDataBuffer[1]<<8)|(sectionDataBuffer[2]<<0))&0xFFF);
+    RDK_LOG(RDK_LOG_INFO, "LOG.RDK.INBSI", "section_length %d, sectionDataBuffer.size() - %d \n", nSect, sectionDataBuffer.size());
+    return nSect;
+#endif
+}
+
+vector<uint8_t> RMFPlayer::get_multiple_section_data(vector<uint8_t>&sectionDataBuffer, int sectionSize)
+{
+#ifdef USE_EXTERNAL_CAS
+    std::vector<uint8_t> sectionDataParsed (sectionDataBuffer.begin(), sectionDataBuffer.begin() + sectionSize);
+    sectionDataBuffer.erase(sectionDataBuffer.begin(), sectionDataBuffer.begin() + sectionSize);
+    RDK_LOG(RDK_LOG_INFO, "LOG.RDK.INBSI", "get_multiple_section_data sectionDataBuffer.size() -  %d, parsed - %d\n", sectionDataBuffer.size(),sectionDataParsed.size());
+    return sectionDataParsed;
+#endif
+}
+
+void RMFPlayer::sectionDataReceived()
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("sectionDataReceived");
+    uint32_t filterId = 0;
+    std::vector<uint8_t> sectionData;
+    int sectionLength = 0;
+    do {
+        m_mediaPlayer->getSectionData(&filterId, sectionData);
+        std::lock_guard<std::mutex> guard(cas_mutex);
+	if(!filterId )
+	{
+        	RDK_LOG(RDK_LOG_DEBUG, "LOG.RDK.INBSI", "filterId not available");
+		return;
+	}
+	if(!m_casService)
+	{
+		LOG_ERROR("m_casService not available\n");
+                return;
+	}
+	sectionLength = get_section_length(sectionData);
+        RDK_LOG(RDK_LOG_DEBUG, "LOG.RDK.INBSI", "sectionLength %d, sectionData.size() - %d\n", sectionLength,(int)sectionData.size());
+	while((int)sectionData.size() > (sectionLength + HEADER_SIZE)){
+	    std::vector<uint8_t> sectionDataParsed;
+	    sectionDataParsed = get_multiple_section_data(sectionData, (sectionLength + HEADER_SIZE));
+	    m_casService->processSectionData(filterId, sectionDataParsed);
+	    sectionLength = get_section_length(sectionData);
+	};
+
+	LOG_INFO("sectionDataReceived for Filter id = %d\n", filterId);
+	m_casService->processSectionData(filterId, sectionData);
+
+    }while(filterId);
+#endif
+}
+
 //MediaPlayerClient impl end
 
 void RMFPlayer::doTimeUpdate(bool forced)
@@ -519,6 +1168,10 @@ bool RMFPlayer::setContentType(const std::string &url, std::string& contentType)
     const char* dvrStrIdentifier  = "recordingId=";
     const char* liveStrIdentifier = "live=ocap://";
     const char* vodStrIdentifier  = "live=vod://";
+    const char* tuneStrIdentifier = "tune://";
+#ifdef ENABLE_RDKMEDIAPLAYER_TS_QAM_TEST
+    const char* tsStrIdentifier  = ".ts";
+#endif
 
     if (url.find(dvrStrIdentifier) != std::string::npos)
     {
@@ -531,7 +1184,7 @@ bool RMFPlayer::setContentType(const std::string &url, std::string& contentType)
             contentType = "DVR";
         }
     }
-    else if (url.find(liveStrIdentifier) != std::string::npos)
+    else if ((url.find(liveStrIdentifier) != std::string::npos) || (url.find(tuneStrIdentifier) != std::string::npos))
     {
         contentType = "LIVE";
     }
@@ -539,6 +1192,12 @@ bool RMFPlayer::setContentType(const std::string &url, std::string& contentType)
     {
         contentType = "VOD";
     } 
+#ifdef ENABLE_RDKMEDIAPLAYER_TS_QAM_TEST
+    else if (url.find(tsStrIdentifier) != std::string::npos)
+    {
+        contentType = "LIVE";
+    }
+#endif
     else
     {
         contentType = "Unsupported";
@@ -546,4 +1205,3 @@ bool RMFPlayer::setContentType(const std::string &url, std::string& contentType)
     }
     return true;
 }
-
