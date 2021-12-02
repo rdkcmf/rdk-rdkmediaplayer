@@ -122,6 +122,10 @@ void CASService::updatePSI(const std::vector<uint8_t>& pat, const std::vector<ui
 
 void CASService::informStatus(const CASStatus& status) {
     LOG_INFO("[%s:%d] Inform Status back to Source = %d\n", __FUNCTION__, __LINE__, status);
+    if(status == CASStatusInform::CASStatus_OK)
+    {
+       casPipelineInterface_->unmuteAudio();
+    }
 }
 
 void CASService::casPublicData(const std::vector<uint8_t>& data)
@@ -207,6 +211,18 @@ ICasFilterStatus RMFPlayer::destroy(ICasHandle* handle) {
     uint32_t filterId = handle->filterId;
     m_mediaPlayer->releaseFilter(filterId);
     return ICasFilterStatus_NoError;
+}
+
+void RMFPlayer::unmuteAudio()
+{
+#ifdef USE_EXTERNAL_CAS
+    LOG_INFO("[%s:%d] - Enter\n", __FUNCTION__, __LINE__);
+    if(m_mediaPlayer->getAudioMute())
+    {
+        LOG_INFO("setAudioMute - false\n");
+        m_mediaPlayer->rmf_setAudioMute(false);
+    }
+#endif
 }
 
 uint32_t RMFPlayer::setKeySlot(uint16_t pid, std::vector<uint8_t> data){
@@ -497,6 +513,7 @@ void RMFPlayer::doSetVideoRectangle(const IntRect& rect)
 
 void RMFPlayer::doSetAudioLanguage(std::string& lang)
 {
+  m_mediaPlayer->rmf_setAudioMute(true);
   LOG_INFO("set lang: %s", lang.c_str());
   m_mediaPlayer->rmf_setAudioLanguage(lang);
 }
@@ -578,6 +595,24 @@ void RMFPlayer::doStop()
         if(casHelper){
             casHelper->setState(CASHelper::CASHelperState::PAUSED);
         }
+	   std::vector<uint16_t> startPids;
+           std::vector<uint16_t> stopPids;
+           uint16_t pid = m_mediaPlayer->rmf_getVideoPid();
+           if (pid != -1)
+           {
+               LOG_INFO("VideoPid = %d\n", pid);
+               stopPids.push_back(pid);
+           }
+           pid = m_mediaPlayer->rmf_getAudioPid();
+           if (pid != -1)
+           {
+               LOG_INFO("AudioPid = %d\n", pid);
+               stopPids.push_back(pid);
+           }
+           if (stopPids.size() > 0)
+           {
+               m_casService->startStopDecrypt(startPids, stopPids);
+           }
     }
     if(m_casService)
     {
@@ -848,13 +883,16 @@ void RMFPlayer::psiReady()
         LOG_INFO("Failed to get PSI buffers (PAT or PMT or CAT)");
         return;
     }
-
+    std::lock_guard<std::mutex> guard(cas_mutex);
     if( getCATBuffer(psiInfo.cat) == 0 )
     {
         LOG_INFO("Failed to get CAT buffer");
     }
+    else
+    {
+        m_casPending = 1;
+    }
 
-    std::lock_guard<std::mutex> guard(cas_mutex);
     if(!m_casService || m_casService->initialize(false, "", &psiInfo) == false)
     {
         if(m_casService)
@@ -948,12 +986,13 @@ void RMFPlayer::psiUpdateReceived(uint8_t psiStatus)
             hasBuffer = true;
         }
     }
-    else if((psiStatus & CAT_UPDATE) != 0)
+    else if( ((psiStatus & CAT_UPDATE) != 0) || ((psiStatus & CAT_ACQUIRE) != 0 && m_casPending) )
     {
         if( getCATBuffer(psiInfo.cat) != 0)
         {
             LOG_INFO("get PSI buffers (CAT) Success");
             hasBuffer = true;
+	    m_casPending = 0;
         }
     }
     else if((psiStatus & PMT_UPDATE) != 0)
@@ -1020,6 +1059,14 @@ void RMFPlayer::pmtUpdate()
     }
 #endif
 }
+
+int RMFPlayer::getCurrentAudioPid()
+{
+#ifdef USE_EXTERNAL_CAS
+    return m_lastAudioPid;
+#endif
+}
+
 int RMFPlayer::get_section_length(vector<uint8_t>sectionDataBuffer)
 {
 #ifdef USE_EXTERNAL_CAS

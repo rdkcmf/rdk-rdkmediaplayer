@@ -54,6 +54,7 @@ public:
   unsigned long rmf_getCCDecoderHandle() const;
   std::string rmf_getAudioLanguages() const;
   void rmf_setAudioLanguage(const std::string &audioLang);
+  void rmf_setAudioMute(bool isMuted);
   void rmf_setEissFilterStatus(bool status);
   void rmf_setVideoZoom(unsigned short zoomVal);
   void rmf_setVideoBufferLength(float bufferLength);
@@ -80,6 +81,8 @@ public:
   uint32_t getPATBuffer(std::vector<uint8_t>& buf) { return 0; }
   uint32_t getPMTBuffer(std::vector<uint8_t>& buf) { return 0; }
   uint32_t getCATBuffer(std::vector<uint8_t>& buf) { return 0; }
+  bool getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang) { };
+  bool getAudioMute() const { };
   void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId) { }
   uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData) { return 0; }
   void releaseFilter(uint32_t filterId) { }

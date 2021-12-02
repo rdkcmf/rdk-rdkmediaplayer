@@ -45,6 +45,7 @@ class MediaPlayerClient {
   virtual void languageChange() = 0;
   virtual void psiUpdateReceived(uint8_t psiStatus) = 0;
   virtual void pmtUpdate() = 0;
+  virtual int getCurrentAudioPid() = 0;
 };
 
 class MediaPlayer {
@@ -92,6 +93,7 @@ class MediaPlayer {
   virtual unsigned long rmf_getCCDecoderHandle() const = 0;
   virtual std::string rmf_getAudioLanguages() const = 0;
   virtual void rmf_setAudioLanguage(const std::string &audioLang) = 0;
+  virtual void rmf_setAudioMute(bool isMuted) = 0;
   virtual void rmf_setEissFilterStatus(bool status) = 0;
   virtual void rmf_setVideoZoom(unsigned short zoomVal) = 0;
   virtual void rmf_setVideoBufferLength(float bufferLength) = 0;
@@ -118,6 +120,8 @@ class MediaPlayer {
   virtual uint32_t getPATBuffer(std::vector<uint8_t>& buf) = 0;
   virtual uint32_t getPMTBuffer(std::vector<uint8_t>& buf) = 0;
   virtual uint32_t getCATBuffer(std::vector<uint8_t>& buf) = 0;
+  virtual bool getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang) = 0;
+  virtual bool getAudioMute() const = 0;
   virtual void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId) = 0;
   virtual uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData) = 0;
   virtual void releaseFilter(uint32_t filterId) = 0;

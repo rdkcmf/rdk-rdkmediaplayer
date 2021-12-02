@@ -24,9 +24,15 @@
 #include "timer.h"
 #include "rmfbase.h"
 
+#define PAT_ACQUIRE 0x1
+#define PMT_ACQUIRE 0x2
+#define CAT_ACQUIRE 0x4
+
 #define PAT_UPDATE 0x08
 #define CAT_UPDATE 0x10
 #define PMT_UPDATE 0x20
+
+#define PSI_READY (PAT_ACQUIRE|PMT_ACQUIRE|CAT_ACQUIRE)
 
 class HNSource;
 class MediaPlayerSink;
@@ -65,6 +71,7 @@ public:
   unsigned long rmf_getCCDecoderHandle() const;
   std::string rmf_getAudioLanguages() const;
   void rmf_setAudioLanguage(const std::string& audioLang);
+  void rmf_setAudioMute(bool isMuted);
   void rmf_setEissFilterStatus(bool status);
   void rmf_setVideoZoom(unsigned short zoomVal);
   void rmf_setVideoBufferLength(float bufferLength);
@@ -90,6 +97,8 @@ public:
   uint32_t getPATBuffer(std::vector<uint8_t>& buf);
   uint32_t getPMTBuffer(std::vector<uint8_t>& buf);
   uint32_t getCATBuffer(std::vector<uint8_t>& buf);
+  bool getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang);
+  bool getAudioMute() const;
   void setFilter(uint16_t pid, char* filterParam, uint32_t *pFilterId);
   uint32_t getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData);
   void releaseFilter(uint32_t filterId);
@@ -158,7 +167,7 @@ public:
   void getErrorMapping(RMFResult err, const char *pMsg);
 #endif /* ENABLE_DIRECT_QAM */
 
-
+  void onPMTUpdateAudioMute();
   MediaPlayerClient* m_playerClient;
   HNSource* m_hnsource;
   IRMFMediaSource* m_source;
@@ -225,6 +234,7 @@ public:
   bool m_eissFilterStatus;
   uint8_t m_psiStatus;
   bool m_pmtUpdate;
+  bool m_audioMuteStatus;
 
   unsigned int m_onFirstVideoFrameHandler;
   unsigned int m_onFirstAudioFrameHandler;

@@ -430,6 +430,10 @@ void MediaPlayerGeneric::rmf_setAudioLanguage(const std::string &)
 {
   NOT_IMPLEMENTED();
 }
+void MediaPlayerGeneric::rmf_setAudioMute(bool isMuted)
+{
+  NOT_IMPLEMENTED();
+}
 void MediaPlayerGeneric::rmf_setEissFilterStatus(bool status)
 {
   NOT_IMPLEMENTED();

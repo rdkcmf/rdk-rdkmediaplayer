@@ -86,6 +86,7 @@ public:
     //ICasPipeline interface
     uint32_t setKeySlot(uint16_t pid, std::vector<uint8_t> data);
     uint32_t deleteKeySlot(uint16_t pid);
+    void unmuteAudio();
 
     //ICasSectionFilter interface
     ICasFilterStatus create(uint16_t pid, ICasFilterParam &param, ICasHandle **pHandle);
@@ -96,6 +97,7 @@ public:
     uint32_t getPATBuffer(std::vector<uint8_t>& patBuf);
     uint32_t getPMTBuffer(std::vector<uint8_t>& pmtBuf);
     uint32_t getCATBuffer(std::vector<uint8_t>& catBuf);
+    bool getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang);
 #endif
 
     //MediaPlayerClient interface
@@ -116,6 +118,7 @@ public:
     void languageChange();
     void psiUpdateReceived(uint8_t psiStatus);
     void pmtUpdate();
+    int getCurrentAudioPid();
 
 private:
     void doTimeUpdate(bool forced = false);
@@ -158,6 +161,7 @@ private:
 #ifdef USE_EXTERNAL_CAS
     CASService *m_casService;
     mutable std::mutex cas_mutex;
+    bool m_casPending;
 #endif
 };
 #endif

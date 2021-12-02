@@ -55,11 +55,6 @@
 #define RMF_VOD_BEGIN_PLAYBACK 7
 #define RMF_VOD_BAD_START_POSITION_VAL 0x7FFFFFFFu
 
-#define PAT 0x1
-#define PMT 0x2
-#define CAT 0x4
-#define PSI_READY (PAT|PMT|CAT)
-
 typedef std::vector<std::string> headers_t;
 
 struct RequestInfo {
@@ -303,6 +298,7 @@ MediaPlayerDLNA::MediaPlayerDLNA(MediaPlayerClient* client)
     , m_onEISSDUpdateHandler(0)
     , m_psiStatus(0)
     , m_pmtUpdate(false)
+    , m_audioMuteStatus(false)
     , m_onMediaWarningReceivedHandler(0) {
   LOG_INFO("DLNA video player created");
   g_playerInstance = this;
@@ -391,17 +387,18 @@ void MediaPlayerDLNA::notifyStatus(const RMFStreamingStatus& status) {
   {
     case RMF_QAMSRC_EVENT_PAT_ACQUIRED:
       LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PAT_ACQUIRED");
-      m_psiStatus |= PAT;
+      m_psiStatus |= PAT_ACQUIRE;
       psiEvent = true;
       break;
     case RMF_QAMSRC_EVENT_PMT_ACQUIRED:
       LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PMT_ACQUIRED");
-      m_psiStatus |= PMT;
+      m_psiStatus |= PMT_ACQUIRE;
       psiEvent = true;
       break;
     case RMF_QAMSRC_EVENT_CAT_ACQUIRED:
       LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_CAT_ACQUIRED");
-      m_psiStatus |= CAT;
+      m_playerClient->psiUpdateReceived(CAT_ACQUIRE);
+      m_psiStatus |= CAT_ACQUIRE;
       psiEvent = true;
       break;
     case RMF_QAMSRC_EVENT_PAT_UPDATE:
@@ -416,6 +413,7 @@ void MediaPlayerDLNA::notifyStatus(const RMFStreamingStatus& status) {
       LOG_INFO("notifyStatus - Status - RMF_QAMSRC_EVENT_PMT_UPDATE");
       m_playerClient->psiUpdateReceived(PMT_UPDATE);
       m_pmtUpdate = true;
+      onPMTUpdateAudioMute();
       break;
   }
   if(status.m_status == RMF_QAMSRC_EVENT_SECTION_ACQUIRED) {
@@ -446,6 +444,35 @@ uint32_t MediaPlayerDLNA::getCATBuffer(std::vector<uint8_t>& buf) {
     m_source->getPrivateSourceImpl()->getCATBuffer(buf, &length);
     return length;
 }
+
+bool MediaPlayerDLNA::getAudioPidFromPMT(uint32_t *pid, const std::string& audioLang) {
+    return m_source->getPrivateSourceImpl()->getAudioPidFromPMT(pid, audioLang);
+}
+
+void MediaPlayerDLNA::onPMTUpdateAudioMute()
+{
+    uint32_t pid;
+    // CAUTION! Uses short-circuit evaluation
+    if(
+       (!getAudioPidFromPMT(&pid, m_sink->getAudioTrackSelected())) &&
+       (!getAudioPidFromPMT(&pid, m_sink->getPreferredAudioLanguage())) &&
+       (!getAudioPidFromPMT(&pid, ""))
+    ){
+       LOG_ERROR("Failed to get AudioPid from PMT");
+       return;
+    }
+    LOG_INFO("onPMTUpdateAudioMute updated audioPid - %p\n", pid);
+    if(pid != m_playerClient->getCurrentAudioPid())
+    {
+        LOG_INFO("Setting AudioMute");
+        rmf_setAudioMute(true);
+    }
+}
+bool MediaPlayerDLNA::getAudioMute() const
+{
+    return m_audioMuteStatus;
+}
+
 
 uint32_t MediaPlayerDLNA::getSectionData(uint32_t *filterId, std::vector<uint8_t>& sectionData)
 {
@@ -1463,6 +1490,17 @@ void MediaPlayerDLNA::rmf_setAudioLanguage(const std::string& audioLang) {
     m_sink->setAudioLanguage(audioLang.c_str());
 
   return;
+}
+
+void MediaPlayerDLNA::rmf_setAudioMute(bool isMuted) {
+    if (m_audioMuteStatus != isMuted)
+    {
+        if (m_sink)
+        {
+            m_sink->setAudioMute(isMuted);
+        }
+        m_audioMuteStatus = isMuted;
+    }
 }
 
 void MediaPlayerDLNA::rmf_setEissFilterStatus (bool eissStatus)
