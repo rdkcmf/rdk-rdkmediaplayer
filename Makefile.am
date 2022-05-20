@@ -23,7 +23,7 @@ SUBDIRS =
 
 AM_CXXFLAGS = -g \
 	-Wall \
-	-std=c++0x \
+	-std=c++17 \
 	-DGCC4_XXX \
 	$(CURL_CFLAGS) \
 	$(GLIB_CFLAGS) \
