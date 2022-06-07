@@ -761,7 +761,7 @@ rtError RDKMediaPlayer::open(rtString openData, rtString resp)
         {
             LOG_INFO("CAS Managment session is already avialable");
         }
-        resp = (std::to_string((uint32_t)m_pImpl)).c_str();
+        resp = (std::to_string((uintptr_t)m_pImpl)).c_str();
         LOG_INFO("resp = %x", resp.cString());
     }
     // For Live Playback Session
@@ -782,7 +782,7 @@ rtError RDKMediaPlayer::open(rtString openData, rtString resp)
             if( !((*it)->isManagementSession()) && (*it)->doCanPlayURL(m_currentURL) )
             {
                 LOG_INFO("Reusing cached player");
-                resp = (std::to_string((uint32_t)*it)).c_str();
+                resp = (std::to_string((uintptr_t)*it)).c_str();
                 LOG_INFO("resp = %x", resp.cString());
             }
         }
