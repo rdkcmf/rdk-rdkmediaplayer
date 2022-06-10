@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
   #ifdef BCM_SVP_ENABLED
   NEXUS_Error rt;
   rt = NxClient_Join(NULL);
-  ASSERT(rt != NEXUS_SUCCESS);
+  ASSERT(rt == NEXUS_SUCCESS);
    //CID:96870 - checked return
   #endif
   gst_init(0, 0);
