@@ -703,7 +703,7 @@ public:
      *  @return Returns the status of the operation.
      *  @retval RT_OK on success, appropriate error code otherwise.
      */
-    rtError open(rtString param, rtString resp);
+    rtError open(rtString param, rtString& resp);
 
     /**
      *  @brief Send the data to CAS System.

@@ -187,7 +187,7 @@ MediaPlayerDLNA *g_playerInstance = NULL;
 
 static void mediaPlayerPrivateHaveVideoCallback(void* player) {
     LOG_INFO("Got video");
-    ASSERT(player == g_playerInstance);
+    ASSERT(player);
     static_cast<MediaPlayerDLNA*>(player)->notifyPresenceOfVideo();
 }
 
@@ -198,33 +198,33 @@ static void mediaPlayerPrivateHaveAudioCallback(void* player) {
 static void mediaPlayerPrivateEISSDataCallback(void* player)
 {
     //LOG_INFO("Got EISS");
-    ASSERT(player == g_playerInstance);
+    ASSERT(player);
     static_cast<MediaPlayerDLNA*>(player)->notifyPlayerOfEISSData();
 }
 static void mediaPlayerPrivateAudioNotifyFirstFrameCallback(void* player) {
-  ASSERT(player == g_playerInstance);
+  ASSERT(player);
   static_cast<MediaPlayerDLNA*>(player)->notifyPlayerOfFirstAudioFrame();
 }
 
 static void mediaPlayerPrivateNotifyMediaWarningCallback(void* player) {
-  ASSERT(player == g_playerInstance);
+  ASSERT(player);
   static_cast<MediaPlayerDLNA*>(player)->notifyPlayerOfMediaWarning();
 }
 
 static void mediaPlayerPrivateVideoNotifyFirstFrameCallback(void* player) {
-  ASSERT(player == g_playerInstance);
+  ASSERT(player);
   static_cast<MediaPlayerDLNA*>(player)->notifyPlayerOfFirstVideoFrame();
 }
 
 static void mediaPlayerPrivateNotifyPmtUpdateCallback(void* player) {
     LOG_INFO("Got AV Pids");
-    ASSERT(player == g_playerInstance);
+    ASSERT(player);
     static_cast<MediaPlayerDLNA*>(player)->notifyPMTUpdate();
 }
 
 static void mediaPlayerLanguageChangeCallback(void* player) {
     LOG_INFO("Got LanguageChange");
-    ASSERT(player == g_playerInstance);
+    ASSERT(player);
     static_cast<MediaPlayerDLNA*>(player)->notifyLanguageChange();
 }
 

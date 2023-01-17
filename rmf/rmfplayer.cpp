@@ -130,11 +130,12 @@ void CASService::informStatus(const CASStatus& status) {
 
 void CASService::casPublicData(const std::vector<uint8_t>& data)
 {
-    LOG_INFO("casPublicData - Received");
+    LOG_INFO("casPublicData - Received 0x%x",this);
     std::string casData;
     casData.assign(data.begin(), data.end());
+    rtValue  sessionId((std::to_string((uint32_t)mpImpl_)).c_str());
     LOG_INFO("casPublicData - %s\n", casData.c_str());
-    emit_.send(OnCASDataEvent(casData));
+    emit_.send(OnCASDataEvent(casData, sessionId));
 }
 
 void CASService::processSectionData(const uint32_t& filterId, const std::vector<uint8_t>& data)
@@ -413,7 +414,7 @@ void RMFPlayer::open(const std::string& openData)
     CASEnvironment env{ mediaUrl, mode_val, manage_val, initData};
 
     std::lock_guard<std::mutex> guard(cas_mutex);
-    m_casService = new CASService(getParent()->getEventEmitter(), env, this, this);
+    m_casService = new CASService(getParent()->getEventEmitter(), env, this, this, this);
     if(m_casService) {
         LOG_INFO("Successfully created m_casService");
     }

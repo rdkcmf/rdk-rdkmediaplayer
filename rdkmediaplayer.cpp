@@ -181,37 +181,25 @@ rtError RDKMediaPlayer::startQueuedTune()
 
     if(!m_pImpl)
     {
-        for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
+        if(AAMPPlayer::canPlayURL(m_currentURL)) 
         {
-            if( !((*it)->isManagementSession()) && (*it)->doCanPlayURL(m_currentURL) )
-            {
-                LOG_INFO("Reusing cached player");
-                m_pImpl = *it;
-            }
+            LOG_INFO("Creating AAMPPlayer");
+            m_pImpl = new AAMPPlayer(this);
         }
-        if(!m_pImpl)
+        else if(RMFPlayer::canPlayURL(m_currentURL))
         {
-            if(AAMPPlayer::canPlayURL(m_currentURL))
-            {
-                LOG_INFO("Creating AAMPPlayer");
-                m_pImpl = new AAMPPlayer(this);
-            }
-            else
-            if(RMFPlayer::canPlayURL(m_currentURL))
-            {
-                LOG_INFO("Creating RMFPlayer");
-                m_pImpl = new RMFPlayer(this);
-            }
-            else
-            {
-                LOG_WARNING("Unsupported media type!");
-                return RT_FAIL;
-            }
+             LOG_INFO("Creating RMFPlayer");
+             m_pImpl = new RMFPlayer(this);
+        } 
+        else
+        {
+            LOG_WARNING("Unsupported media type!");
+            return RT_FAIL;
+        }
 
-            m_pImpl->doInit();
-            m_playerCache.push_back(m_pImpl);
-            getEventEmitter().send(OnPlayerInitializedEvent());
-        }
+        m_pImpl->doInit();
+        m_playerCache.push_back(m_pImpl);
+        getEventEmitter().send(OnPlayerInitializedEvent());
     }
     CALL_ON_MAIN_THREAD (
         LOG_INFO("Tuning player to %s\n", self.m_currentURL.c_str());
@@ -235,20 +223,17 @@ rtError RDKMediaPlayer::setCurrentURL(rtString const& s)
     m_duration = 0;
     m_vidDecoderHandle = 0;
 
-    if(m_pImpl)
+    m_pImpl = nullptr;
+    for(std::vector<RDKMediaPlayerImpl*>::iterator it = m_playerCache.begin(); it != m_playerCache.end(); ++it)
     {
-        if(m_pImpl->getTuneState() == TuneStart)
+        // pick an entry from the cache if it is idle and can play this URL
+        if( !((*it)->isManagementSession()) && ((*it)->getTuneState() == TuneNone ) && ((*it)->doCanPlayURL(m_currentURL)))
         {
-            LOG_INFO("stopping player\n");//CID:127658 - NO argument available
-            stop();
-            return RT_OK;
-        }
-        else if(m_pImpl->getTuneState() == TuneStop)
-        {
-            LOG_INFO("waiting on player to stop\n");//CID:127658 - NO argument available
-            return RT_OK;
+            m_pImpl = *it;
+            break;
         }
     }
+
     LOG_INFO("calling startQueuedTune");
     return startQueuedTune();
 }
@@ -706,7 +691,7 @@ rtError RDKMediaPlayer::destroy()
     exit(0);
 }
 
-rtError RDKMediaPlayer::open(rtString openData, rtString resp)
+rtError RDKMediaPlayer::open(rtString openData, rtString& resp)
 {
     LOG_INFO("%s, openData = %s\n", __PRETTY_FUNCTION__, openData.cString());
     rtError ret = RT_OK;
@@ -762,7 +747,7 @@ rtError RDKMediaPlayer::open(rtString openData, rtString resp)
             LOG_INFO("CAS Managment session is already avialable");
         }
         resp = (std::to_string((uintptr_t)m_pImpl)).c_str();
-        LOG_INFO("resp = %x", resp.cString());
+        LOG_INFO("resp = %s", resp.cString());
     }
     // For Live Playback Session
     else if ((mode == "MODE_LIVE" || mode == "MODE_PLAYBACK") && manage == "MANAGE_NONE") {
@@ -783,7 +768,7 @@ rtError RDKMediaPlayer::open(rtString openData, rtString resp)
             {
                 LOG_INFO("Reusing cached player");
                 resp = (std::to_string((uintptr_t)*it)).c_str();
-                LOG_INFO("resp = %x", resp.cString());
+                LOG_INFO("resp = %s", resp.cString());
             }
         }
     }
@@ -801,13 +786,29 @@ rtError RDKMediaPlayer::open(rtString openData, rtString resp)
 rtError RDKMediaPlayer::sendCASData(rtString data, rtString resp)
 {
     LOG_INFO("%s\n", __PRETTY_FUNCTION__);
-    if(!m_pImpl)
+
+    RDKMediaPlayerImpl* cmi_pImpl;
+    json_error_t error;
+    json_t *root = json_loads(data.cString(), 0, &error);
+
+    if (!root) {
+        LOG_INFO("json error on line %d: %s\n", error.line, error.text);
         return RT_FAIL;
+    }
+
+    cmi_pImpl = (RDKMediaPlayerImpl* )json_integer_value(json_object_get(root, "sessionId"));
+
+    if(!cmi_pImpl)
+    {
+        json_decref(root);
+        return RT_FAIL;
+    }
     std::string strData = data.cString();
 #ifdef USE_EXTERNAL_CAS
-    ((RMFPlayer *)m_pImpl)->sendCASData(strData);
+    ((RMFPlayer *)cmi_pImpl)->sendCASData(strData);
 #endif
 
+    json_decref(root);
     return RT_OK;
 }
 

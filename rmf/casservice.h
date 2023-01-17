@@ -44,11 +44,12 @@ public:
 class CASService : public CASDataListener, CASStatusInform
 {
 public:
-    CASService(const EventEmitter& emit, const CASEnvironment& env, ICasSectionFilter* casSFInterface, ICasPipeline *casPipelineInterface)
+    CASService(const EventEmitter& emit, const CASEnvironment& env, ICasSectionFilter* casSFInterface, ICasPipeline *casPipelineInterface, RDKMediaPlayerImpl* mpImpl = nullptr)
                 :emit_(emit),
                  env_(env),
                  casSFInterface_(casSFInterface),
                  casPipelineInterface_(casPipelineInterface),
+                 mpImpl_(mpImpl),
                  bManagementSession_(false) { }
     ~CASService() = default;
 
@@ -133,6 +134,7 @@ private:
     ICasSectionFilter* casSFInterface_;
     ICasPipeline* casPipelineInterface_;
 
+    RDKMediaPlayerImpl* mpImpl_;
 };
 
 #endif  // _CAS_SERVICE_H_

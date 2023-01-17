@@ -121,7 +121,7 @@ struct OnStatusEvent: public Event
             Set("isLive", &val);
             Set("netStreamInfo", &val);
         }
-        rtError Get(const char* name, rtValue* value) const override
+        rtError Get(const char* name, rtValue* value, rtValue* session=nullptr) const override
         {
             if (!value)
                 return RT_FAIL;
@@ -138,7 +138,7 @@ struct OnStatusEvent: public Event
             safec_rc = strcmp_s("duration", strlen("duration"), name, &ind);
             ERR_CHK(safec_rc);
             if((safec_rc == EOK) && (!ind)) { *value = pd.duration; return RT_OK; }
-            return rtMapObject::Get(name, value);
+            return rtMapObject::Get(name, value, session);
         }
         RDKMediaPlayerImpl* m_player;
     };
@@ -161,7 +161,7 @@ struct OnProgressEvent: public Event
             Set("start", &val);
             Set("end", &val);
         }
-        rtError Get(const char* name, rtValue* value) const override
+        rtError Get(const char* name, rtValue* value, rtValue* session=nullptr) const override
         {
             if (!value)
                 return RT_FAIL;
@@ -191,7 +191,7 @@ struct OnProgressEvent: public Event
             ERR_CHK(safec_rc);
             if((safec_rc == EOK) && (!ind)) { *value = pd.end; return RT_OK; }
 
-            return rtMapObject::Get(name, value);
+            return rtMapObject::Get(name, value, session);
         }
         RDKMediaPlayerImpl* m_player;
     };
@@ -332,8 +332,9 @@ struct OnBitrateChanged: public Event
 
 struct OnCASDataEvent: public Event
 {
-  OnCASDataEvent(const std::string& data) : Event("onCASData")
+  OnCASDataEvent(const std::string& data, rtValue sessionId) : Event("onCASData")
   {
+    m_object.set("session", sessionId);
     m_object.set("casData", rtString(data.c_str()));
   }
 };
